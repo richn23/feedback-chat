@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const SHEET_ID = '13ekisAdxH6ReLJcGStnKTBxIa4hHKCC6FktLhJg6Usg';
+const SHEET_ID = import.meta.env.VITE_SUGGESTIONS_SHEET_ID;
 const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY;
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
