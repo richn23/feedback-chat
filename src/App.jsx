@@ -140,30 +140,40 @@ const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycby7cn2og8X1L9G
 
 const saveToGoogleSheet = async (data) => {
   try {
+    // Create hidden iframe if it doesn't exist
+    let iframe = document.getElementById('hidden_iframe_feedback');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.name = 'hidden_iframe_feedback';
+      iframe.id = 'hidden_iframe_feedback';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    
+    // Create form
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = GOOGLE_SHEET_URL;
-    form.target = 'hidden_iframe';
+    form.target = 'hidden_iframe_feedback';
+    form.style.display = 'none';
     
+    // Add data as hidden input
     const input = document.createElement('input');
     input.type = 'hidden';
     input.name = 'data';
     input.value = JSON.stringify(data);
     form.appendChild(input);
     
-    // Create hidden iframe to receive response
-    let iframe = document.getElementById('hidden_iframe');
-    if (!iframe) {
-      iframe = document.createElement('iframe');
-      iframe.name = 'hidden_iframe';
-      iframe.id = 'hidden_iframe';
-      iframe.style.display = 'none';
-      document.body.appendChild(iframe);
-    }
-    
+    // Submit form
     document.body.appendChild(form);
     form.submit();
-    document.body.removeChild(form);
+    
+    // Clean up form after short delay
+    setTimeout(() => {
+      if (form.parentNode) {
+        form.parentNode.removeChild(form);
+      }
+    }, 1000);
     
     console.log('Data saved to Google Sheet');
   } catch (error) {
