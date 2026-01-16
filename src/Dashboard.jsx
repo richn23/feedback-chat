@@ -1446,8 +1446,8 @@ function Dashboard() {
         <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
           <SummaryCard 
             title="Active Surveys" 
-            value="1" 
-            subtitle="Class Feedback"
+            value="2" 
+            subtitle="Class Feedback, Suggestions"
           />
           <SummaryCard 
             title="Responses This Week" 
@@ -1499,10 +1499,25 @@ function Dashboard() {
                 status: 'Active',
                 responses: responses.length,
                 mss: homeMSS,
-                thisWeek: getThisWeekResponses(responses).length
+                thisWeek: getThisWeekResponses(responses).length,
+                link: 'survey'
+              },
+              {
+                name: 'Suggestions Box',
+                status: 'Active',
+                responses: '-',
+                mss: null,
+                thisWeek: '-',
+                link: 'suggestions'
               }
             ]}
-            onRowClick={() => setView('survey')}
+            onRowClick={(row) => {
+              if (row.link === 'survey') {
+                setView('survey');
+              } else if (row.link === 'suggestions') {
+                window.location.href = '/suggestions-dashboard';
+              }
+            }}
           />
         </div>
       </div>
