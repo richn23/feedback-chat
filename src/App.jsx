@@ -150,19 +150,28 @@ const saveToGoogleSheet = async (data) => {
       document.body.appendChild(iframe);
     }
     
-    // Create form
+    // Create form with UTF-8 encoding
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = GOOGLE_SHEET_URL;
     form.target = 'hidden_iframe_feedback';
     form.style.display = 'none';
+    form.acceptCharset = 'UTF-8';
     
-    // Add data as hidden input
+    // Add data as hidden input - encode properly for Unicode
     const input = document.createElement('input');
     input.type = 'hidden';
     input.name = 'data';
-    input.value = JSON.stringify(data);
+    // Use encodeURIComponent to handle Unicode, then decode on server
+    input.value = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
     form.appendChild(input);
+    
+    // Add flag to indicate base64 encoding
+    const encodingInput = document.createElement('input');
+    encodingInput.type = 'hidden';
+    encodingInput.name = 'encoding';
+    encodingInput.value = 'base64';
+    form.appendChild(encodingInput);
     
     // Submit form
     document.body.appendChild(form);

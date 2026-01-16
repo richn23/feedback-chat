@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID;
 const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY;
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+const SUGGESTIONS_SHEET_ID = import.meta.env.VITE_SUGGESTIONS_SHEET_ID;
 
 // Generate AI summary with evidence
 const generateAISummary = async (name, type, mss, lessonsAvg, teacherAvg, responseCount, positiveComments, negativeComments) => {
@@ -124,6 +125,41 @@ const fetchSheetData = async () => {
     improve: row[10] || '',
     other: row[11] || ''
   }));
+};
+
+// Fetch suggestions count
+const fetchSuggestionsCount = async () => {
+  if (!SUGGESTIONS_SHEET_ID) return { total: 0, thisWeek: 0 };
+  
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SUGGESTIONS_SHEET_ID}/values/Sheet1!A:A?key=${API_KEY}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (!data.values || data.values.length < 2) {
+      return { total: 0, thisWeek: 0 };
+    }
+    
+    // Filter out DEBUG and ERROR rows
+    const rows = data.values.slice(1).filter(row => 
+      row[0] && !row[0].startsWith('DEBUG') && !row[0].startsWith('ERROR')
+    );
+    
+    const total = rows.length;
+    
+    // Count this week
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const thisWeek = rows.filter(row => {
+      const date = new Date(row[0]);
+      return date >= weekAgo;
+    }).length;
+    
+    return { total, thisWeek };
+  } catch (error) {
+    console.error('Error fetching suggestions:', error);
+    return { total: 0, thisWeek: 0 };
+  }
 };
 
 // Calculate MSS (Monthly Satisfaction Score)
@@ -660,6 +696,7 @@ function Dashboard() {
   const [error, setError] = useState(null);
   const [view, setView] = useState('home');
   const [selectedTeacher, setSelectedTeacher] = useState(null);
+  const [suggestionsCount, setSuggestionsCount] = useState({ total: 0, thisWeek: 0 });
   
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -684,8 +721,12 @@ function Dashboard() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await fetchSheetData();
+      const [data, suggestionsData] = await Promise.all([
+        fetchSheetData(),
+        fetchSuggestionsCount()
+      ]);
       setResponses(data);
+      setSuggestionsCount(suggestionsData);
       setError(null);
     } catch (err) {
       setError('Failed to load data: ' + err.message);
@@ -1505,9 +1546,9 @@ function Dashboard() {
               {
                 name: 'Suggestions Box',
                 status: 'Active',
-                responses: '-',
+                responses: suggestionsCount.total || '-',
                 mss: null,
-                thisWeek: '-',
+                thisWeek: suggestionsCount.thisWeek || '-',
                 link: 'suggestions'
               }
             ]}
