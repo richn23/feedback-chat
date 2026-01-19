@@ -1,124 +1,298 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const SYSTEM_PROMPT = `You are a friendly feedback assistant for ES World, an English language school with campuses in Dubai and London. Your job is to collect feedback from students in a warm, conversational way.
+const SYSTEM_PROMPT = `You are a friendly feedback assistant for ES World English school (Dubai and London). Collect student feedback in a warm, natural way.
 
-CRITICAL: After the student selects their language, you MUST conduct the ENTIRE conversation in that language. All questions, all response options, all follow-ups - everything in their chosen language.
+LANGUAGE RULES:
+- After language selection, speak ONLY in that language
+- Use simple words (CEFR B1 level)
+- Keep sentences short
+- Be warm but brief
 
-CRITICAL: You MUST include button_options in your JSON response for questions 2, 3, and 4. The UI depends on this.
+CONVERSATION FLOW:
 
-DATA TO COLLECT (in order):
+1. LANGUAGE - Already selected via buttons
 
-1. LANGUAGE - Already selected via buttons before you start
+2. CAMPUS - Ask which campus
+   Set current_step: "campus"
 
-2. CAMPUS - Ask which campus they study at
-   YOU MUST include this in your JSON:
-   "button_options": {"type": "campus", "options": [{"label": "Dubai", "value": "Dubai"}, {"label": "London", "value": "London"}]}
+3. TEACHER - Ask teacher's name  
+   Set current_step: "teacher"
 
-3. TEACHER - Ask who their teacher is
-   YOU MUST include this in your JSON:
-   "button_options": {"type": "teacher", "options": [{"label": "Richard", "value": "Richard"}, {"label": "Ryan", "value": "Ryan"}, {"label": "Majid", "value": "Majid"}, {"label": "Tom", "value": "Tom"}, {"label": "Scott", "value": "Scott"}, {"label": "Gemma", "value": "Gemma"}, {"label": "Jenna", "value": "Jenna"}, {"label": "Danya", "value": "Danya"}, {"label": "Mariam", "value": "Mariam"}, {"label": "Moe", "value": "Moe"}]}
+4. DURATION - Ask how long studying
+   Set current_step: "duration"
 
-4. DURATION - Ask how long they've been studying
-   YOU MUST include this in your JSON:
-   "button_options": {"type": "duration", "options": [{"label": "1-2 weeks", "value": "1-2 weeks"}, {"label": "3-4 weeks", "value": "3-4 weeks"}, {"label": "1-2 months", "value": "1-2 months"}, {"label": "2+ months", "value": "2+ months"}]}
+5. LEARNING ENVIRONMENT section
+   Set current_step: "env"
+   
+6. ENV FOLLOW-UP - Brief summary (1 sentence max), ask "Anything to add?"
+   Set current_step: "env_comment"
 
-5. SECTION: LEARNING ENVIRONMENT
-   Say something like "Let's talk about your learning environment"
-   Provide ALL 4 questions at once in "section_questions":
-   - env_classroom: "How comfortable is your classroom?" 
-   - env_facilities: "Are the school facilities good?" 
-   - env_location: "How convenient is the location?" 
-   - env_schedule: "Does your class schedule work for you?"
+7. LEARNING EXPERIENCE section
+   Set current_step: "exp"
 
-6. ENVIRONMENT FOLLOW-UP
-   Summarize naturally based on their answers. Ask if anything else to share.
-   Store comment in env_comment (translate to English)
+8. EXP FOLLOW-UP
+   Set current_step: "exp_comment"
 
-7-8. SECTION: LEARNING EXPERIENCE
-   - exp_activities: "Are class activities helpful?"
-   - exp_homework: "Is the homework right for you?"
-   - exp_materials: "Do the materials help you learn?"
-   - exp_progress: "How much is your English improving?"
+9. TEACHING QUALITY section
+   Set current_step: "teach"
 
-9-10. SECTION: TEACHING QUALITY
-   - teach_explanations: "Are explanations clear?"
-   - teach_preparation: "Is the teacher prepared?"
-   - teach_methods: "Are teaching methods effective?"
-   - teach_speaking: "Do you get speaking practice?"
+10. TEACH FOLLOW-UP
+    Set current_step: "teach_comment"
 
-11-12. SECTION: STUDENT SUPPORT
-   - support_help: "Do you get help when needed?"
-   - support_feedback: "Is feedback on your work helpful?"
-   - support_encouragement: "Does the teacher encourage you?"
-   - support_atmosphere: "Is the learning atmosphere good?"
+11. STUDENT SUPPORT section
+    Set current_step: "support"
 
-13-14. SECTION: CLASS MANAGEMENT
-   - mgmt_timing: "Is class time managed well?"
-   - mgmt_fairness: "Does everyone get equal attention?"
-   - mgmt_organization: "Are lessons well organized?"
-   - mgmt_rules: "Are classroom rules good?"
+12. SUPPORT FOLLOW-UP
+    Set current_step: "support_comment"
 
-15. FINAL COMMENT - Ask anything else to share, store in final_comment
+13. CLASS MANAGEMENT section
+    Set current_step: "mgmt"
 
-16. THANK YOU - Set is_complete: true
+14. MGMT FOLLOW-UP
+    Set current_step: "mgmt_comment"
 
-RATING SCALE: Option 1=3(best), Option 2=2, Option 3=1, Option 4=0(worst)
+15. FINAL - "Any other comments?" 
+    Set current_step: "final"
 
-FOLLOW-UP: Create natural summaries. Say "the classroom seems comfortable" NOT "how comfortable is your classroom is going well"
+16. THANK YOU - Short thanks, set is_complete: true
 
-JSON OUTPUT after EVERY response:
+STYLE GUIDE:
+- Summaries: ONE short sentence only. Example: "Good to hear the classroom works for you."
+- Don't repeat what they said back to them
+- Don't be overly enthusiastic 
+- Sound like a real person, not a robot
+- Translate comments to English when storing
+
+BAD: "That's wonderful to hear! It sounds like you're really enjoying the comfortable classroom environment and finding the facilities quite satisfactory!"
+GOOD: "Great, thanks. Anything else about the environment?"
+
+BAD: "Thank you so much for sharing that valuable feedback about your learning experience!"  
+GOOD: "Thanks. Let's talk about your classes next."
+
+JSON FORMAT - include after EVERY response:
 |||JSON|||
 {
   "language": null,
   "campus": null,
   "teacher_name": null,
   "duration": null,
-  "env_classroom": null, "env_facilities": null, "env_location": null, "env_schedule": null, "env_comment": null,
-  "exp_activities": null, "exp_homework": null, "exp_materials": null, "exp_progress": null, "exp_comment": null,
-  "teach_explanations": null, "teach_preparation": null, "teach_methods": null, "teach_speaking": null, "teach_comment": null,
-  "support_help": null, "support_feedback": null, "support_encouragement": null, "support_atmosphere": null, "support_comment": null,
-  "mgmt_timing": null, "mgmt_fairness": null, "mgmt_organization": null, "mgmt_rules": null, "mgmt_comment": null,
+  "env_classroom": null,
+  "env_facilities": null,
+  "env_location": null,
+  "env_schedule": null,
+  "env_comment": null,
+  "exp_activities": null,
+  "exp_homework": null,
+  "exp_materials": null,
+  "exp_progress": null,
+  "exp_comment": null,
+  "teach_explanations": null,
+  "teach_preparation": null,
+  "teach_methods": null,
+  "teach_speaking": null,
+  "teach_comment": null,
+  "support_help": null,
+  "support_feedback": null,
+  "support_encouragement": null,
+  "support_atmosphere": null,
+  "support_comment": null,
+  "mgmt_timing": null,
+  "mgmt_fairness": null,
+  "mgmt_organization": null,
+  "mgmt_rules": null,
+  "mgmt_comment": null,
   "final_comment": null,
   "is_complete": false,
-  "current_step": "campus",
-  "button_options": null,
-  "section_questions": null
+  "current_step": "campus"
 }
-|||END|||
+|||END|||`;
 
-SECTION_QUESTIONS FORMAT (for steps 5, 7, 9, 11, 13):
-{
-  "section": "env",
-  "title": "Learning Environment",
-  "questions": [
-    {"key": "env_classroom", "question": "How comfortable is your classroom?", "options": [
-      {"label": "Very comfortable", "value": 3},
-      {"label": "Comfortable enough", "value": 2},
-      {"label": "Sometimes uncomfortable", "value": 1},
-      {"label": "Often uncomfortable", "value": 0}
-    ]},
-    {"key": "env_facilities", "question": "Are the school facilities good?", "options": [
-      {"label": "Excellent", "value": 3},
-      {"label": "Good", "value": 2},
-      {"label": "Adequate", "value": 1},
-      {"label": "Poor", "value": 0}
-    ]},
-    {"key": "env_location", "question": "How convenient is the location?", "options": [
-      {"label": "Very convenient", "value": 3},
-      {"label": "Convenient enough", "value": 2},
-      {"label": "Somewhat inconvenient", "value": 1},
-      {"label": "Very inconvenient", "value": 0}
-    ]},
-    {"key": "env_schedule", "question": "Does your class schedule work for you?", "options": [
-      {"label": "Works perfectly", "value": 3},
-      {"label": "Works well", "value": 2},
-      {"label": "Some issues", "value": 1},
-      {"label": "Doesn't work", "value": 0}
-    ]}
-  ]
-}
+const HARDCODED_OPTIONS = {
+  campus: {
+    type: 'campus',
+    options: [
+      { label: 'Dubai', value: 'Dubai' },
+      { label: 'London', value: 'London' }
+    ]
+  },
+  teacher: {
+    type: 'teacher',
+    options: [
+      { label: 'Richard', value: 'Richard' },
+      { label: 'Ryan', value: 'Ryan' },
+      { label: 'Majid', value: 'Majid' },
+      { label: 'Tom', value: 'Tom' },
+      { label: 'Scott', value: 'Scott' },
+      { label: 'Gemma', value: 'Gemma' },
+      { label: 'Jenna', value: 'Jenna' },
+      { label: 'Danya', value: 'Danya' },
+      { label: 'Mariam', value: 'Mariam' },
+      { label: 'Moe', value: 'Moe' }
+    ]
+  },
+  duration: {
+    type: 'duration',
+    options: [
+      { label: '1-2 weeks', value: '1-2 weeks' },
+      { label: '3-4 weeks', value: '3-4 weeks' },
+      { label: '1-2 months', value: '1-2 months' },
+      { label: '2+ months', value: '2+ months' }
+    ]
+  }
+};
 
-REMEMBER: For campus, teacher, and duration questions - you MUST include button_options in your JSON!`;
+const HARDCODED_SECTIONS = {
+  env: {
+    section: 'env',
+    title: 'Learning Environment',
+    questions: [
+      { key: 'env_classroom', question: 'How comfortable is your classroom?', options: [
+        { label: 'Very comfortable', value: 3 },
+        { label: 'Comfortable enough', value: 2 },
+        { label: 'Sometimes uncomfortable', value: 1 },
+        { label: 'Often uncomfortable', value: 0 }
+      ]},
+      { key: 'env_facilities', question: 'Are the school facilities good?', options: [
+        { label: 'Excellent', value: 3 },
+        { label: 'Good', value: 2 },
+        { label: 'Adequate', value: 1 },
+        { label: 'Poor', value: 0 }
+      ]},
+      { key: 'env_location', question: 'How convenient is the location?', options: [
+        { label: 'Very convenient', value: 3 },
+        { label: 'Convenient enough', value: 2 },
+        { label: 'Somewhat inconvenient', value: 1 },
+        { label: 'Very inconvenient', value: 0 }
+      ]},
+      { key: 'env_schedule', question: 'Does your class schedule work for you?', options: [
+        { label: 'Works perfectly', value: 3 },
+        { label: 'Works well', value: 2 },
+        { label: 'Some issues', value: 1 },
+        { label: "Doesn't work", value: 0 }
+      ]}
+    ]
+  },
+  exp: {
+    section: 'exp',
+    title: 'Learning Experience',
+    questions: [
+      { key: 'exp_activities', question: 'Are class activities helpful?', options: [
+        { label: 'Very helpful', value: 3 },
+        { label: 'Helpful', value: 2 },
+        { label: 'Somewhat helpful', value: 1 },
+        { label: 'Not helpful', value: 0 }
+      ]},
+      { key: 'exp_homework', question: 'Is the homework right for you?', options: [
+        { label: 'Perfect amount', value: 3 },
+        { label: 'About right', value: 2 },
+        { label: 'Too much/little', value: 1 },
+        { label: 'Not appropriate', value: 0 }
+      ]},
+      { key: 'exp_materials', question: 'Do the materials help you learn?', options: [
+        { label: 'Very helpful', value: 3 },
+        { label: 'Helpful', value: 2 },
+        { label: 'Somewhat helpful', value: 1 },
+        { label: 'Not helpful', value: 0 }
+      ]},
+      { key: 'exp_progress', question: 'How much is your English improving?', options: [
+        { label: 'A lot', value: 3 },
+        { label: 'Some improvement', value: 2 },
+        { label: 'A little', value: 1 },
+        { label: 'Not improving', value: 0 }
+      ]}
+    ]
+  },
+  teach: {
+    section: 'teach',
+    title: 'Teaching Quality',
+    questions: [
+      { key: 'teach_explanations', question: 'Are explanations clear?', options: [
+        { label: 'Very clear', value: 3 },
+        { label: 'Clear', value: 2 },
+        { label: 'Sometimes unclear', value: 1 },
+        { label: 'Often unclear', value: 0 }
+      ]},
+      { key: 'teach_preparation', question: 'Is the teacher prepared?', options: [
+        { label: 'Always prepared', value: 3 },
+        { label: 'Usually prepared', value: 2 },
+        { label: 'Sometimes unprepared', value: 1 },
+        { label: 'Often unprepared', value: 0 }
+      ]},
+      { key: 'teach_methods', question: 'Are teaching methods effective?', options: [
+        { label: 'Very effective', value: 3 },
+        { label: 'Effective', value: 2 },
+        { label: 'Somewhat effective', value: 1 },
+        { label: 'Not effective', value: 0 }
+      ]},
+      { key: 'teach_speaking', question: 'Do you get speaking practice?', options: [
+        { label: 'Plenty', value: 3 },
+        { label: 'Enough', value: 2 },
+        { label: 'Not enough', value: 1 },
+        { label: 'Very little', value: 0 }
+      ]}
+    ]
+  },
+  support: {
+    section: 'support',
+    title: 'Student Support',
+    questions: [
+      { key: 'support_help', question: 'Do you get help when needed?', options: [
+        { label: 'Always', value: 3 },
+        { label: 'Usually', value: 2 },
+        { label: 'Sometimes', value: 1 },
+        { label: 'Rarely', value: 0 }
+      ]},
+      { key: 'support_feedback', question: 'Is feedback on your work helpful?', options: [
+        { label: 'Very helpful', value: 3 },
+        { label: 'Helpful', value: 2 },
+        { label: 'Somewhat helpful', value: 1 },
+        { label: 'Not helpful', value: 0 }
+      ]},
+      { key: 'support_encouragement', question: 'Does the teacher encourage you?', options: [
+        { label: 'Very encouraging', value: 3 },
+        { label: 'Encouraging', value: 2 },
+        { label: 'Somewhat', value: 1 },
+        { label: 'Not encouraging', value: 0 }
+      ]},
+      { key: 'support_atmosphere', question: 'Is the learning atmosphere good?', options: [
+        { label: 'Excellent', value: 3 },
+        { label: 'Good', value: 2 },
+        { label: 'Okay', value: 1 },
+        { label: 'Poor', value: 0 }
+      ]}
+    ]
+  },
+  mgmt: {
+    section: 'mgmt',
+    title: 'Class Management',
+    questions: [
+      { key: 'mgmt_timing', question: 'Is class time managed well?', options: [
+        { label: 'Very well', value: 3 },
+        { label: 'Well', value: 2 },
+        { label: 'Could be better', value: 1 },
+        { label: 'Poorly', value: 0 }
+      ]},
+      { key: 'mgmt_fairness', question: 'Does everyone get equal attention?', options: [
+        { label: 'Yes, always', value: 3 },
+        { label: 'Usually', value: 2 },
+        { label: 'Sometimes', value: 1 },
+        { label: 'No', value: 0 }
+      ]},
+      { key: 'mgmt_organization', question: 'Are lessons well organized?', options: [
+        { label: 'Very organized', value: 3 },
+        { label: 'Organized', value: 2 },
+        { label: 'Somewhat', value: 1 },
+        { label: 'Disorganized', value: 0 }
+      ]},
+      { key: 'mgmt_rules', question: 'Are classroom rules clear and fair?', options: [
+        { label: 'Very clear & fair', value: 3 },
+        { label: 'Clear & fair', value: 2 },
+        { label: 'Somewhat', value: 1 },
+        { label: 'Unclear/unfair', value: 0 }
+      ]}
+    ]
+  }
+};
 
 const LANGUAGES = [
   { label: 'English', value: 'English' },
@@ -255,7 +429,7 @@ function FeedbackChatV2() {
   }, [messages, sectionQuestions]);
 
   useEffect(() => {
-    setMessages([{ type: 'bot', text: "Hi! 👋 Welcome to ES World feedback.\n\nWhat language would you like to chat in?" }]);
+    setMessages([{ type: 'bot', text: "Hi! 👋 Please choose your language." }]);
   }, []);
 
   const parseResponse = (text) => {
@@ -304,13 +478,26 @@ function FeedbackChatV2() {
       setMessages(prev => [...prev, { type: 'bot', text: displayText }]);
       if (data) {
         setCollectedData(prev => ({ ...prev, ...data }));
-        if (data.button_options) setButtonOptions(data.button_options);
+        
+        // Use hardcoded options if Claude doesn't provide them
+        if (data.button_options && data.button_options.options) {
+          setButtonOptions(data.button_options);
+        } else if (HARDCODED_OPTIONS[data.current_step]) {
+          setButtonOptions(HARDCODED_OPTIONS[data.current_step]);
+        } else if (HARDCODED_OPTIONS['campus']) {
+          // Default to campus options after language selection
+          setButtonOptions(HARDCODED_OPTIONS['campus']);
+        }
+        
         if (data.current_step) setCurrentStep(data.current_step);
+      } else {
+        // Fallback - show campus options
+        setButtonOptions(HARDCODED_OPTIONS['campus']);
       }
     } catch (error) {
       console.error('Error:', error);
       setMessages(prev => [...prev, { type: 'bot', text: "Let's start! Which campus do you study at?" }]);
-      setButtonOptions({ type: 'campus', options: [{ label: 'Dubai', value: 'Dubai' }, { label: 'London', value: 'London' }] });
+      setButtonOptions(HARDCODED_OPTIONS['campus']);
     }
     setIsLoading(false);
   };
@@ -334,11 +521,25 @@ function FeedbackChatV2() {
       if (data) {
         setCollectedData(prev => ({ ...prev, ...data }));
         if (data.current_step) setCurrentStep(data.current_step);
-        if (data.button_options) setButtonOptions(data.button_options);
-        if (data.section_questions) {
+        
+        // Use hardcoded options if Claude doesn't provide them
+        if (data.button_options && data.button_options.options) {
+          setButtonOptions(data.button_options);
+        } else if (HARDCODED_OPTIONS[data.current_step]) {
+          setButtonOptions(HARDCODED_OPTIONS[data.current_step]);
+        } else {
+          setButtonOptions(null);
+        }
+        
+        // Use hardcoded sections if Claude doesn't provide them
+        if (data.section_questions && data.section_questions.questions) {
           setSectionQuestions(data.section_questions);
           setSectionAnswers({});
+        } else if (HARDCODED_SECTIONS[data.current_step]) {
+          setSectionQuestions(HARDCODED_SECTIONS[data.current_step]);
+          setSectionAnswers({});
         }
+        
         if (data.is_complete) {
           setIsComplete(true);
           saveToGoogleSheet({ ...collectedData, ...data });
