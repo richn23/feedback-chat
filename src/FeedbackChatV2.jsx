@@ -271,12 +271,45 @@ const saveToGoogleSheet = async (data) => {
     return;
   }
 
+  // Use hidden form submission (works with Apps Script)
   try {
-    const formData = new FormData();
-    formData.append('data', btoa(unescape(encodeURIComponent(JSON.stringify(rowData)))));
-    formData.append('encoding', 'base64');
-    await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
-    console.log('Data sent');
+    let iframe = document.getElementById('hidden_iframe_feedback');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.name = 'hidden_iframe_feedback';
+      iframe.id = 'hidden_iframe_feedback';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = GOOGLE_SCRIPT_URL;
+    form.target = 'hidden_iframe_feedback';
+    form.style.display = 'none';
+
+    // Data field (base64 encoded for Unicode)
+    const dataInput = document.createElement('input');
+    dataInput.type = 'hidden';
+    dataInput.name = 'data';
+    dataInput.value = btoa(unescape(encodeURIComponent(JSON.stringify(rowData))));
+    form.appendChild(dataInput);
+
+    // Encoding flag
+    const encodingInput = document.createElement('input');
+    encodingInput.type = 'hidden';
+    encodingInput.name = 'encoding';
+    encodingInput.value = 'base64';
+    form.appendChild(encodingInput);
+
+    document.body.appendChild(form);
+    form.submit();
+
+    setTimeout(() => {
+      if (form.parentNode) form.parentNode.removeChild(form);
+    }, 1000);
+
+    console.log('Data sent via form');
   } catch (error) {
     console.error('Save error:', error);
   }
@@ -310,14 +343,20 @@ const RatingSlider = ({ question, value, onChange }) => {
     return '😟';
   };
 
+  const getLabel = () => {
+    if (localValue >= 2.5) return 'Great';
+    if (localValue >= 1.5) return 'Good';
+    if (localValue >= 0.5) return 'Okay';
+    return 'Poor';
+  };
+
   return (
     <div style={{ marginBottom: '18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <span style={{ fontSize: '14px', color: '#374151', fontWeight: '500' }}>{question.label}</span>
-        <span style={{ fontSize: '20px' }}>{getEmoji()}</span>
+        <span style={{ fontSize: '14px', color: getTrackColor(), fontWeight: '500' }}>{getEmoji()} {getLabel()}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontSize: '18px' }}>{question.left}</span>
         <div style={{ flex: 1, position: 'relative' }}>
           <input
             type="range"
@@ -372,7 +411,6 @@ const RatingSlider = ({ question, value, onChange }) => {
             ))}
           </div>
         </div>
-        <span style={{ fontSize: '18px' }}>{question.right}</span>
       </div>
     </div>
   );
@@ -521,6 +559,7 @@ function FeedbackChatV2() {
 
   // Handlers
   const handleLanguageSelect = async (language) => {
+    setMessages(prev => [...prev, { type: 'user', text: language }]);
     setData({ language });
     setIsLoading(true);
     const response = await getClaudeResponse('welcome', {});
@@ -530,6 +569,7 @@ function FeedbackChatV2() {
   };
 
   const handleCampusSelect = async (campus) => {
+    setMessages(prev => [...prev, { type: 'user', text: campus }]);
     setData(prev => ({ ...prev, campus }));
     setIsLoading(true);
     const response = await getClaudeResponse('campus_selected', { campus });
@@ -539,6 +579,7 @@ function FeedbackChatV2() {
   };
 
   const handleTeacherSelect = async (teacher) => {
+    setMessages(prev => [...prev, { type: 'user', text: teacher }]);
     setData(prev => ({ ...prev, teacher_name: teacher }));
     setIsLoading(true);
     const response = await getClaudeResponse('teacher_selected', { teacher });
@@ -548,6 +589,7 @@ function FeedbackChatV2() {
   };
 
   const handleDurationSelect = async (duration) => {
+    setMessages(prev => [...prev, { type: 'user', text: duration }]);
     setData(prev => ({ ...prev, duration }));
     setIsLoading(true);
     const response = await getClaudeResponse('duration_selected', { duration });
@@ -557,6 +599,8 @@ function FeedbackChatV2() {
   };
 
   const handleSectionSubmit = async (sectionKey, values) => {
+    // Show a simple "Done ✓" message instead of listing all answers
+    setMessages(prev => [...prev, { type: 'user', text: '✓ Submitted' }]);
     setData(prev => ({ ...prev, ...values }));
     setSectionAnswers({});
     setIsLoading(true);
@@ -567,6 +611,7 @@ function FeedbackChatV2() {
   };
 
   const handleCommentSubmit = async (commentKey, comment) => {
+    setMessages(prev => [...prev, { type: 'user', text: comment || 'Nothing to add' }]);
     setIsLoading(true);
     const translated = await translateToEnglish(comment, data.language);
     setData(prev => ({ ...prev, [commentKey]: translated }));
@@ -660,6 +705,15 @@ function FeedbackChatV2() {
       fontSize: '15px',
       lineHeight: '1.4',
       boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+    },
+    userMessage: {
+      maxWidth: '85%',
+      padding: '12px 16px',
+      borderRadius: '18px 18px 4px 18px',
+      backgroundColor: '#f97316',
+      color: 'white',
+      fontSize: '15px',
+      lineHeight: '1.4'
     },
     inputArea: {
       padding: '16px',
@@ -797,8 +851,8 @@ function FeedbackChatV2() {
       {/* Messages */}
       <div style={styles.messagesContainer}>
         {messages.map((msg, idx) => (
-          <div key={idx} style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <div style={styles.botMessage}>{msg.text}</div>
+          <div key={idx} style={{ display: 'flex', justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={msg.type === 'user' ? styles.userMessage : styles.botMessage}>{msg.text}</div>
           </div>
         ))}
 
