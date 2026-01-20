@@ -85,6 +85,8 @@ export default function FeedbackChatV2() {
   const [textInput, setTextInput] = useState('');
   const [translatedUI, setTranslatedUI] = useState(null);
   const [currentRatings, setCurrentRatings] = useState({});
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [currentRatingSection, setCurrentRatingSection] = useState(null);
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -96,6 +98,12 @@ export default function FeedbackChatV2() {
   useEffect(() => {
     if (currentStep.endsWith('_comment') || currentStep === 'final') {
       inputRef.current?.focus();
+    }
+    // Open modal for rating sections
+    const ratingSteps = ['env', 'exp', 'teach', 'support', 'mgmt'];
+    if (ratingSteps.includes(currentStep)) {
+      setCurrentRatingSection(currentStep);
+      setShowRatingModal(true);
     }
   }, [currentStep]);
 
@@ -382,6 +390,10 @@ CRITICAL RULES:
     if (!allAnswered) {
       return; // Don't submit if not all answered
     }
+    
+    // Close modal first
+    setShowRatingModal(false);
+    setCurrentRatingSection(null);
     
     // Build display text for user message
     const displayParts = sectionQuestions.map(q => {
@@ -884,15 +896,17 @@ CRITICAL RULES:
       case 'campus': return renderCampusSelector();
       case 'teacher': return renderTeacherSelector();
       case 'duration': return renderDurationSelector();
-      case 'env': return renderRatingCard('env');
+      case 'env':
+      case 'exp':
+      case 'teach':
+      case 'support':
+      case 'mgmt':
+        // Modal handles these - show nothing in input area
+        return null;
       case 'env_comment': return renderCommentInput('env');
-      case 'exp': return renderRatingCard('exp');
       case 'exp_comment': return renderCommentInput('exp');
-      case 'teach': return renderRatingCard('teach');
       case 'teach_comment': return renderCommentInput('teach');
-      case 'support': return renderRatingCard('support');
       case 'support_comment': return renderCommentInput('support');
-      case 'mgmt': return renderRatingCard('mgmt');
       case 'mgmt_comment': return renderCommentInput('mgmt');
       case 'final': return renderFinalInput();
       case 'complete': return (
@@ -902,6 +916,142 @@ CRITICAL RULES:
       );
       default: return null;
     }
+  };
+
+  const renderRatingModal = () => {
+    if (!showRatingModal || !currentRatingSection) return null;
+    
+    const section = RATING_SECTIONS[currentRatingSection];
+    const translated = translatedUI?.sections?.[currentRatingSection];
+    
+    return (
+      <div style={styles.modalOverlay}>
+        <div style={styles.modalContent}>
+          <div style={styles.modalHeader}>
+            <h2 style={styles.modalTitle}>
+              {translated?.title || section.title}
+            </h2>
+          </div>
+          
+          <div style={styles.modalBody}>
+            {section.questions.map((q, qIdx) => {
+              const translatedQ = translated?.questions?.[qIdx];
+              const options = translatedQ?.options || q.options;
+              const reversedOptions = [...options].reverse();
+              const selectedValue = currentRatings[q.key];
+              const positions = [0, 33.33, 66.67, 100];
+              
+              return (
+                <div key={q.key} style={{ marginBottom: '28px' }}>
+                  <div style={styles.modalQuestionLabel}>
+                    {translatedQ?.label || q.en}
+                  </div>
+                  
+                  {/* Emoji row */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: '8px',
+                    padding: '0 4px'
+                  }}>
+                    {EMOJIS.map((emoji, idx) => (
+                      <span 
+                        key={idx} 
+                        style={{ 
+                          fontSize: '24px',
+                          opacity: selectedValue === idx ? 1 : 0.4,
+                          transform: selectedValue === idx ? 'scale(1.3)' : 'scale(1)',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {emoji}
+                      </span>
+                    ))}
+                  </div>
+                  
+                  {/* Gradient slider bar */}
+                  <div 
+                    style={{
+                      position: 'relative',
+                      height: '36px',
+                      borderRadius: '18px',
+                      background: 'linear-gradient(to right, #ef4444, #f97316, #eab308, #22c55e)',
+                      cursor: 'pointer'
+                    }}
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = e.clientX - rect.left;
+                      const percent = x / rect.width;
+                      const value = Math.min(3, Math.floor(percent * 4));
+                      handleRatingChange(q.key, value);
+                    }}
+                  >
+                    {/* Unselected overlay */}
+                    {selectedValue !== undefined && selectedValue < 3 && (
+                      <div style={{
+                        position: 'absolute',
+                        top: 0,
+                        bottom: 0,
+                        left: `${positions[selectedValue] + (selectedValue === 0 ? 12 : 8)}%`,
+                        right: 0,
+                        backgroundColor: 'rgba(255,255,255,0.7)',
+                        borderRadius: '0 18px 18px 0',
+                        pointerEvents: 'none'
+                      }} />
+                    )}
+                    
+                    {/* Selection dot */}
+                    {selectedValue !== undefined && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: selectedValue === 0 ? '18px' : selectedValue === 3 ? 'calc(100% - 18px)' : `${positions[selectedValue]}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: '24px',
+                        height: '24px',
+                        backgroundColor: 'white',
+                        borderRadius: '50%',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                        border: `3px solid ${GRADIENT_COLORS[selectedValue]}`,
+                        pointerEvents: 'none'
+                      }} />
+                    )}
+                  </div>
+                  
+                  {/* Selected label */}
+                  <div style={{
+                    textAlign: 'center',
+                    marginTop: '10px',
+                    fontSize: '14px',
+                    color: '#374151',
+                    fontWeight: '500',
+                    minHeight: '22px'
+                  }}>
+                    {selectedValue !== undefined ? reversedOptions[selectedValue] : ''}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          <div style={styles.modalFooter}>
+            <button
+              onClick={() => handleRatingsSubmit(currentRatingSection)}
+              disabled={loading || !section.questions.every(q => currentRatings[q.key] !== undefined)}
+              style={{
+                ...styles.submitButton,
+                width: '100%',
+                padding: '16px',
+                fontSize: '16px',
+                ...(loading || !section.questions.every(q => currentRatings[q.key] !== undefined) ? styles.disabledButton : {})
+              }}
+            >
+              {translatedUI?.submit || 'Submit'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -943,10 +1093,17 @@ CRITICAL RULES:
         </div>
       </div>
 
+      {/* Rating Modal */}
+      {renderRatingModal()}
+
       <style>{`
         @keyframes bounce {
           0%, 60%, 100% { transform: translateY(0); }
           30% { transform: translateY(-4px); }
+        }
+        @keyframes slideUp {
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
         }
       `}</style>
     </div>
@@ -1216,5 +1373,55 @@ const styles = {
     fontSize: '18px',
     fontWeight: '500',
     color: '#10b981'
+  },
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    zIndex: 1000
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: '24px 24px 0 0',
+    width: '100%',
+    maxWidth: '448px',
+    maxHeight: '90vh',
+    display: 'flex',
+    flexDirection: 'column',
+    animation: 'slideUp 0.3s ease-out'
+  },
+  modalHeader: {
+    padding: '20px 20px 12px',
+    borderBottom: '1px solid #e5e7eb'
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: '20px',
+    fontWeight: '600',
+    color: '#1f2937',
+    textAlign: 'center'
+  },
+  modalBody: {
+    padding: '20px',
+    overflowY: 'auto',
+    flex: 1
+  },
+  modalFooter: {
+    padding: '16px 20px',
+    paddingBottom: '32px',
+    borderTop: '1px solid #e5e7eb',
+    backgroundColor: 'white'
+  },
+  modalQuestionLabel: {
+    fontSize: '15px',
+    fontWeight: '600',
+    marginBottom: '12px',
+    color: '#374151'
   }
 };
