@@ -1,35 +1,73 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
 const SYSTEM_PROMPT = `You are a friendly feedback assistant for ES World English school (Dubai and London). Collect student feedback in a warm, natural way.
 
-CRITICAL LANGUAGE RULE:
-After user selects a language, you MUST respond ONLY in that language for ALL text.
+LANGUAGE RULES:
+- After language selection, speak ONLY in that language
+- Use simple words (CEFR B1 level)
+- Keep sentences short
+- Be warm but brief
 
 CONVERSATION FLOW:
+
 1. LANGUAGE - Already selected via buttons
-2. CAMPUS - Ask which campus. Set current_step: "campus"
-3. TEACHER - Ask teacher's name. Set current_step: "teacher"
-4. DURATION - Ask how long studying. Set current_step: "duration"
-5. LEARNING ENVIRONMENT section - Set current_step: "env"
-6. ENV FOLLOW-UP - Brief summary, ask if anything to add. Set current_step: "env_comment"
-7. LEARNING EXPERIENCE section - Set current_step: "exp"
-8. EXP FOLLOW-UP - Set current_step: "exp_comment"
-9. TEACHING QUALITY section - Set current_step: "teach"
-10. TEACH FOLLOW-UP - Set current_step: "teach_comment"
-11. STUDENT SUPPORT section - Set current_step: "support"
-12. SUPPORT FOLLOW-UP - Set current_step: "support_comment"
-13. CLASS MANAGEMENT section - Set current_step: "mgmt"
-14. MGMT FOLLOW-UP - Set current_step: "mgmt_comment"
-15. FINAL - "Any other comments?" Set current_step: "final"
+
+2. CAMPUS - Ask which campus
+   Set current_step: "campus"
+
+3. TEACHER - Ask teacher's name  
+   Set current_step: "teacher"
+
+4. DURATION - Ask how long studying
+   Set current_step: "duration"
+
+5. LEARNING ENVIRONMENT section
+   Set current_step: "env"
+   
+6. ENV FOLLOW-UP - Brief summary (1 sentence max), ask "Anything to add?"
+   Set current_step: "env_comment"
+
+7. LEARNING EXPERIENCE section
+   Set current_step: "exp"
+
+8. EXP FOLLOW-UP
+   Set current_step: "exp_comment"
+
+9. TEACHING QUALITY section
+   Set current_step: "teach"
+
+10. TEACH FOLLOW-UP
+    Set current_step: "teach_comment"
+
+11. STUDENT SUPPORT section
+    Set current_step: "support"
+
+12. SUPPORT FOLLOW-UP
+    Set current_step: "support_comment"
+
+13. CLASS MANAGEMENT section
+    Set current_step: "mgmt"
+
+14. MGMT FOLLOW-UP
+    Set current_step: "mgmt_comment"
+
+15. FINAL - "Any other comments?" 
+    Set current_step: "final"
+
 16. THANK YOU - Short thanks, set is_complete: true
 
 STYLE GUIDE:
-- ONE short sentence summaries only
-- Don't repeat what they said
-- Don't be overly enthusiastic
+- Summaries: ONE short sentence only. Example: "Good to hear the classroom works for you."
+- Don't repeat what they said back to them
+- Don't be overly enthusiastic 
+- Sound like a real person, not a robot
 - Translate comments to English when storing
+
+BAD: "That's wonderful to hear! It sounds like you're really enjoying the comfortable classroom environment and finding the facilities quite satisfactory!"
+GOOD: "Great, thanks. Anything else about the environment?"
+
+BAD: "Thank you so much for sharing that valuable feedback about your learning experience!"  
+GOOD: "Thanks. Let's talk about your classes next."
 
 JSON FORMAT - include after EVERY response:
 |||JSON|||
@@ -69,109 +107,213 @@ JSON FORMAT - include after EVERY response:
 }
 |||END|||`;
 
-const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
-
-// Default English UI text
-const DEFAULT_UI = {
-  sectionTitles: {
-    env: 'Learning Environment',
-    exp: 'Learning Experience', 
-    teach: 'Teaching Quality',
-    support: 'Student Support',
-    mgmt: 'Class Management'
+const HARDCODED_OPTIONS = {
+  campus: {
+    type: 'campus',
+    options: [
+      { label: 'Dubai', value: 'Dubai' },
+      { label: 'London', value: 'London' }
+    ]
   },
-  questions: {
-    env_classroom: 'Classroom comfort',
-    env_facilities: 'Facilities',
-    env_location: 'Location',
-    env_schedule: 'Schedule',
-    exp_activities: 'Class activities',
-    exp_homework: 'Homework',
-    exp_materials: 'Materials',
-    exp_progress: 'Your progress',
-    teach_explanations: 'Explanations',
-    teach_preparation: 'Preparation',
-    teach_methods: 'Teaching methods',
-    teach_speaking: 'Speaking practice',
-    support_help: 'Getting help',
-    support_feedback: 'Feedback quality',
-    support_encouragement: 'Encouragement',
-    support_atmosphere: 'Atmosphere',
-    mgmt_timing: 'Time management',
-    mgmt_fairness: 'Fairness',
-    mgmt_organization: 'Organization',
-    mgmt_rules: 'Rules'
+  teacher: {
+    type: 'teacher',
+    options: [
+      { label: 'Richard', value: 'Richard' },
+      { label: 'Ryan', value: 'Ryan' },
+      { label: 'Majid', value: 'Majid' },
+      { label: 'Tom', value: 'Tom' },
+      { label: 'Scott', value: 'Scott' },
+      { label: 'Gemma', value: 'Gemma' },
+      { label: 'Jenna', value: 'Jenna' },
+      { label: 'Danya', value: 'Danya' },
+      { label: 'Mariam', value: 'Mariam' },
+      { label: 'Moe', value: 'Moe' }
+    ]
   },
-  options: {
-    env_classroom: ['Very comfortable', 'Comfortable enough', 'Sometimes uncomfortable', 'Often uncomfortable'],
-    env_facilities: ['Excellent', 'Good', 'Adequate', 'Poor'],
-    env_location: ['Very convenient', 'Convenient enough', 'Somewhat inconvenient', 'Very inconvenient'],
-    env_schedule: ['Works perfectly', 'Works well', 'Some issues', "Doesn't work"],
-    exp_activities: ['Very helpful', 'Helpful enough', 'Somewhat helpful', 'Not helpful'],
-    exp_homework: ['Perfect amount', 'About right', 'Too much/little', 'Not appropriate'],
-    exp_materials: ['Very helpful', 'Helpful enough', 'Somewhat helpful', 'Not helpful'],
-    exp_progress: ['Improving a lot', 'Improving enough', 'Improving a little', 'Not improving'],
-    teach_explanations: ['Very clear', 'Clear enough', 'Sometimes unclear', 'Often unclear'],
-    teach_preparation: ['Always prepared', 'Usually prepared', 'Sometimes unprepared', 'Often unprepared'],
-    teach_methods: ['Very effective', 'Effective enough', 'Somewhat effective', 'Not effective'],
-    teach_speaking: ['Plenty of practice', 'Enough practice', 'Not enough', 'Very little'],
-    support_help: ['Always available', 'Usually available', 'Sometimes available', 'Rarely available'],
-    support_feedback: ['Very helpful', 'Helpful enough', 'Somewhat helpful', 'Not helpful'],
-    support_encouragement: ['Very encouraging', 'Encouraging enough', 'Somewhat encouraging', 'Not encouraging'],
-    support_atmosphere: ['Excellent', 'Good', 'Okay', 'Poor'],
-    mgmt_timing: ['Very well managed', 'Well managed', 'Could be better', 'Poorly managed'],
-    mgmt_fairness: ['Yes, always', 'Usually', 'Sometimes', 'No'],
-    mgmt_organization: ['Very organized', 'Organized enough', 'Somewhat organized', 'Disorganized'],
-    mgmt_rules: ['Very clear & fair', 'Clear & fair', 'Somewhat clear', 'Unclear/unfair']
-  },
-  buttons: {
-    continue: 'Continue →',
-    nothingToAdd: 'Nothing to add →',
-    send: 'Send',
-    placeholder: 'Type your comment...',
-    submitted: '✓ Feedback submitted',
-    answerAll: 'Answer all questions'
-  },
-  duration: ['1-2 weeks', '3-4 weeks', '1-2 months', '2+ months']
-};
-
-// Get translations from Claude
-const getTranslations = async (language) => {
-  if (language === 'English') return DEFAULT_UI;
-  
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 3000,
-        messages: [{
-          role: 'user',
-          content: `Translate this UI text to ${language}. Keep it simple (B1 level). Return ONLY valid JSON, no other text.
-
-${JSON.stringify(DEFAULT_UI, null, 2)}`
-        }]
-      })
-    });
-
-    if (!response.ok) throw new Error('Translation failed');
-    const result = await response.json();
-    const text = result.content[0].text;
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-  } catch (error) {
-    console.error('Translation error:', error);
+  duration: {
+    type: 'duration',
+    options: [
+      { label: '1-2 weeks', value: '1-2 weeks' },
+      { label: '3-4 weeks', value: '3-4 weeks' },
+      { label: '1-2 months', value: '1-2 months' },
+      { label: '2+ months', value: '2+ months' }
+    ]
   }
-  return DEFAULT_UI;
 };
+
+const HARDCODED_SECTIONS = {
+  env: {
+    section: 'env',
+    title: 'Learning Environment',
+    questions: [
+      { key: 'env_classroom', question: 'How comfortable is your classroom?', options: [
+        { label: 'Very comfortable', value: 3 },
+        { label: 'Comfortable enough', value: 2 },
+        { label: 'Sometimes uncomfortable', value: 1 },
+        { label: 'Often uncomfortable', value: 0 }
+      ]},
+      { key: 'env_facilities', question: 'Are the school facilities good?', options: [
+        { label: 'Excellent', value: 3 },
+        { label: 'Good', value: 2 },
+        { label: 'Adequate', value: 1 },
+        { label: 'Poor', value: 0 }
+      ]},
+      { key: 'env_location', question: 'How convenient is the location?', options: [
+        { label: 'Very convenient', value: 3 },
+        { label: 'Convenient enough', value: 2 },
+        { label: 'Somewhat inconvenient', value: 1 },
+        { label: 'Very inconvenient', value: 0 }
+      ]},
+      { key: 'env_schedule', question: 'Does your class schedule work for you?', options: [
+        { label: 'Works perfectly', value: 3 },
+        { label: 'Works well', value: 2 },
+        { label: 'Some issues', value: 1 },
+        { label: "Doesn't work", value: 0 }
+      ]}
+    ]
+  },
+  exp: {
+    section: 'exp',
+    title: 'Learning Experience',
+    questions: [
+      { key: 'exp_activities', question: 'Are class activities helpful?', options: [
+        { label: 'Very helpful', value: 3 },
+        { label: 'Helpful', value: 2 },
+        { label: 'Somewhat helpful', value: 1 },
+        { label: 'Not helpful', value: 0 }
+      ]},
+      { key: 'exp_homework', question: 'Is the homework right for you?', options: [
+        { label: 'Perfect amount', value: 3 },
+        { label: 'About right', value: 2 },
+        { label: 'Too much/little', value: 1 },
+        { label: 'Not appropriate', value: 0 }
+      ]},
+      { key: 'exp_materials', question: 'Do the materials help you learn?', options: [
+        { label: 'Very helpful', value: 3 },
+        { label: 'Helpful', value: 2 },
+        { label: 'Somewhat helpful', value: 1 },
+        { label: 'Not helpful', value: 0 }
+      ]},
+      { key: 'exp_progress', question: 'How much is your English improving?', options: [
+        { label: 'A lot', value: 3 },
+        { label: 'Some improvement', value: 2 },
+        { label: 'A little', value: 1 },
+        { label: 'Not improving', value: 0 }
+      ]}
+    ]
+  },
+  teach: {
+    section: 'teach',
+    title: 'Teaching Quality',
+    questions: [
+      { key: 'teach_explanations', question: 'Are explanations clear?', options: [
+        { label: 'Very clear', value: 3 },
+        { label: 'Clear', value: 2 },
+        { label: 'Sometimes unclear', value: 1 },
+        { label: 'Often unclear', value: 0 }
+      ]},
+      { key: 'teach_preparation', question: 'Is the teacher prepared?', options: [
+        { label: 'Always prepared', value: 3 },
+        { label: 'Usually prepared', value: 2 },
+        { label: 'Sometimes unprepared', value: 1 },
+        { label: 'Often unprepared', value: 0 }
+      ]},
+      { key: 'teach_methods', question: 'Are teaching methods effective?', options: [
+        { label: 'Very effective', value: 3 },
+        { label: 'Effective', value: 2 },
+        { label: 'Somewhat effective', value: 1 },
+        { label: 'Not effective', value: 0 }
+      ]},
+      { key: 'teach_speaking', question: 'Do you get speaking practice?', options: [
+        { label: 'Plenty', value: 3 },
+        { label: 'Enough', value: 2 },
+        { label: 'Not enough', value: 1 },
+        { label: 'Very little', value: 0 }
+      ]}
+    ]
+  },
+  support: {
+    section: 'support',
+    title: 'Student Support',
+    questions: [
+      { key: 'support_help', question: 'Do you get help when needed?', options: [
+        { label: 'Always', value: 3 },
+        { label: 'Usually', value: 2 },
+        { label: 'Sometimes', value: 1 },
+        { label: 'Rarely', value: 0 }
+      ]},
+      { key: 'support_feedback', question: 'Is feedback on your work helpful?', options: [
+        { label: 'Very helpful', value: 3 },
+        { label: 'Helpful', value: 2 },
+        { label: 'Somewhat helpful', value: 1 },
+        { label: 'Not helpful', value: 0 }
+      ]},
+      { key: 'support_encouragement', question: 'Does the teacher encourage you?', options: [
+        { label: 'Very encouraging', value: 3 },
+        { label: 'Encouraging', value: 2 },
+        { label: 'Somewhat', value: 1 },
+        { label: 'Not encouraging', value: 0 }
+      ]},
+      { key: 'support_atmosphere', question: 'Is the learning atmosphere good?', options: [
+        { label: 'Excellent', value: 3 },
+        { label: 'Good', value: 2 },
+        { label: 'Okay', value: 1 },
+        { label: 'Poor', value: 0 }
+      ]}
+    ]
+  },
+  mgmt: {
+    section: 'mgmt',
+    title: 'Class Management',
+    questions: [
+      { key: 'mgmt_timing', question: 'Is class time managed well?', options: [
+        { label: 'Very well', value: 3 },
+        { label: 'Well', value: 2 },
+        { label: 'Could be better', value: 1 },
+        { label: 'Poorly', value: 0 }
+      ]},
+      { key: 'mgmt_fairness', question: 'Does everyone get equal attention?', options: [
+        { label: 'Yes, always', value: 3 },
+        { label: 'Usually', value: 2 },
+        { label: 'Sometimes', value: 1 },
+        { label: 'No', value: 0 }
+      ]},
+      { key: 'mgmt_organization', question: 'Are lessons well organized?', options: [
+        { label: 'Very organized', value: 3 },
+        { label: 'Organized', value: 2 },
+        { label: 'Somewhat', value: 1 },
+        { label: 'Disorganized', value: 0 }
+      ]},
+      { key: 'mgmt_rules', question: 'Are classroom rules clear and fair?', options: [
+        { label: 'Very clear & fair', value: 3 },
+        { label: 'Clear & fair', value: 2 },
+        { label: 'Somewhat', value: 1 },
+        { label: 'Unclear/unfair', value: 0 }
+      ]}
+    ]
+  }
+};
+
+const LANGUAGES = [
+  { label: 'English', value: 'English' },
+  { label: 'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©', value: 'Arabic' },
+  { label: 'EspaÃ±ol', value: 'Spanish' },
+  { label: 'ä¸­æ–‡', value: 'Chinese' },
+  { label: 'PortuguÃªs', value: 'Portuguese' },
+  { label: 'TÃ¼rkÃ§e', value: 'Turkish' },
+  { label: 'Ð ÑƒÑÑÐºÐ¸Ð¹', value: 'Russian' },
+  { label: 'à¹„à¸—à¸¢', value: 'Thai' },
+  { label: 'ÙØ§Ø±Ø³ÛŒ', value: 'Farsi' },
+  { label: 'í•œêµ­ì–´', value: 'Korean' },
+  { label: 'æ—¥æœ¬èªž', value: 'Japanese' },
+  { label: 'Tiáº¿ng Viá»‡t', value: 'Vietnamese' },
+  { label: 'FranÃ§ais', value: 'French' },
+  { label: 'Deutsch', value: 'German' },
+  { label: 'Italiano', value: 'Italian' },
+  { label: 'Other...', value: 'OTHER' }
+];
+
+const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
 
 const generateResponseId = () => 'FB' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 4).toUpperCase();
 
@@ -224,6 +366,8 @@ const saveToGoogleSheet = async (data) => {
     overall_avg: overall_avg.toFixed(2)
   };
 
+  console.log('=== FINAL DATA FOR SHEET ===', rowData);
+
   if (GOOGLE_SCRIPT_URL) {
     try {
       let iframe = document.getElementById('hidden_iframe_feedback');
@@ -239,8 +383,8 @@ const saveToGoogleSheet = async (data) => {
       form.method = 'POST';
       form.action = GOOGLE_SCRIPT_URL;
       form.target = 'hidden_iframe_feedback';
-      form.acceptCharset = 'UTF-8';
       form.style.display = 'none';
+      form.acceptCharset = 'UTF-8';
 
       const input = document.createElement('input');
       input.type = 'hidden';
@@ -256,39 +400,16 @@ const saveToGoogleSheet = async (data) => {
 
       document.body.appendChild(form);
       form.submit();
-      setTimeout(() => { if (form.parentNode) form.parentNode.removeChild(form); }, 1000);
+
+      setTimeout(() => {
+        if (form.parentNode) form.parentNode.removeChild(form);
+      }, 1000);
+
+      console.log('Data sent to Google Sheet');
     } catch (error) {
-      console.error('Error saving:', error);
+      console.error('Error saving to Google Sheet:', error);
     }
   }
-};
-
-const LANGUAGES = [
-  { label: 'English', value: 'English' },
-  { label: 'العربية', value: 'Arabic' },
-  { label: 'Español', value: 'Spanish' },
-  { label: '中文', value: 'Chinese' },
-  { label: 'Português', value: 'Portuguese' },
-  { label: 'Türkçe', value: 'Turkish' },
-  { label: 'Русский', value: 'Russian' },
-  { label: 'ไทย', value: 'Thai' },
-  { label: 'فارسی', value: 'Farsi' },
-  { label: '한국어', value: 'Korean' },
-  { label: '日本語', value: 'Japanese' },
-  { label: 'Tiếng Việt', value: 'Vietnamese' },
-  { label: 'Français', value: 'French' },
-  { label: 'Deutsch', value: 'German' },
-  { label: 'Italiano', value: 'Italian' }
-];
-
-const TEACHERS = ['Richard', 'Ryan', 'Majid', 'Tom', 'Scott', 'Gemma', 'Jenna', 'Danya', 'Mariam', 'Moe'];
-
-const SECTION_ICONS = {
-  env: '🏫',
-  exp: '📚',
-  teach: '👨‍🏫',
-  support: '🤝',
-  mgmt: '📋'
 };
 
 function FeedbackChatV2() {
@@ -298,17 +419,18 @@ function FeedbackChatV2() {
   const [isComplete, setIsComplete] = useState(false);
   const [collectedData, setCollectedData] = useState({});
   const [currentStep, setCurrentStep] = useState('language');
+  const [buttonOptions, setButtonOptions] = useState(null);
+  const [sectionQuestions, setSectionQuestions] = useState(null);
   const [sectionAnswers, setSectionAnswers] = useState({});
-  const [ui, setUi] = useState(DEFAULT_UI);
-  const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const [customLangMode, setCustomLangMode] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, currentStep]);
+  }, [messages, sectionQuestions]);
 
   useEffect(() => {
-    setMessages([{ type: 'bot', text: "Hi! 👋 Choose your language." }]);
+    setMessages([{ type: 'bot', text: "Hi! ðŸ‘‹ Please choose your language." }]);
   }, []);
 
   const parseResponse = (text) => {
@@ -316,22 +438,27 @@ function FeedbackChatV2() {
     let displayText = text.replace(/\|\|\|JSON\|\|\|[\s\S]*?\|\|\|END\|\|\|/, '').trim();
     let data = null;
     if (jsonMatch) {
-      try { data = JSON.parse(jsonMatch[1]); } catch (e) { console.error('JSON error:', e); }
+      try {
+        data = JSON.parse(jsonMatch[1]);
+      } catch (e) {
+        console.error('JSON parse error:', e);
+      }
     }
     return { displayText, data };
   };
 
   const callClaude = async (conversationHistory) => {
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
+        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-haiku-4-20250514',
         max_tokens: 2048,
         system: SYSTEM_PROMPT,
         messages: conversationHistory
@@ -342,280 +469,580 @@ function FeedbackChatV2() {
     return result.content[0].text;
   };
 
-  const handleLanguageSelect = async (language) => {
-    setSelectedLanguage(language);
-    setMessages(prev => [...prev, { type: 'user', text: language }]);
+  const startAfterLanguage = async (language) => {
     setIsLoading(true);
-    
-    // Get translations
-    const translations = await getTranslations(language);
-    setUi(translations);
-    
     setCollectedData({ language });
     setCurrentStep('campus');
-    
     try {
-      const response = await callClaude([{ 
-        role: 'user', 
-        content: `User selected ${language}. Ask which campus (Dubai or London) IN ${language}. Remember to respond ONLY in ${language} from now on.` 
-      }]);
+      const response = await callClaude([{ role: 'user', content: `I want to give feedback in ${language}. Let's start.` }]);
       const { displayText, data } = parseResponse(response);
       setMessages(prev => [...prev, { type: 'bot', text: displayText }]);
       if (data) {
         setCollectedData(prev => ({ ...prev, ...data }));
+        
+        // Use hardcoded options if Claude doesn't provide them
+        if (data.button_options && data.button_options.options) {
+          setButtonOptions(data.button_options);
+        } else if (HARDCODED_OPTIONS[data.current_step]) {
+          setButtonOptions(HARDCODED_OPTIONS[data.current_step]);
+        } else if (HARDCODED_OPTIONS['campus']) {
+          // Default to campus options after language selection
+          setButtonOptions(HARDCODED_OPTIONS['campus']);
+        }
+        
         if (data.current_step) setCurrentStep(data.current_step);
+      } else {
+        // Fallback - show campus options
+        setButtonOptions(HARDCODED_OPTIONS['campus']);
       }
     } catch (error) {
       console.error('Error:', error);
+      setMessages(prev => [...prev, { type: 'bot', text: "Let's start! Which campus do you study at?" }]);
+      setButtonOptions(HARDCODED_OPTIONS['campus']);
     }
     setIsLoading(false);
   };
 
-  const sendMessage = async (userMessage, storeAs = null) => {
+  const sendMessage = async (userMessage) => {
     const newMessages = [...messages, { type: 'user', text: userMessage }];
     setMessages(newMessages);
     setIsLoading(true);
+    setButtonOptions(null);
+    setSectionQuestions(null);
 
     try {
       const conversationHistory = newMessages.map(msg => ({
         role: msg.type === 'user' ? 'user' : 'assistant',
         content: msg.text
       }));
-      
-      // Add reminder about language
-      if (selectedLanguage !== 'English') {
-        conversationHistory[conversationHistory.length - 1].content += ` [Remember: respond in ${selectedLanguage}]`;
-      }
-
       const response = await callClaude(conversationHistory);
       const { displayText, data } = parseResponse(response);
       setMessages([...newMessages, { type: 'bot', text: displayText }]);
 
       if (data) {
-        const updatedData = { ...collectedData, ...data };
-        if (storeAs) updatedData[storeAs] = userMessage;
-        setCollectedData(updatedData);
-        
+        setCollectedData(prev => ({ ...prev, ...data }));
         if (data.current_step) setCurrentStep(data.current_step);
+        
+        // Use hardcoded options if Claude doesn't provide them
+        if (data.button_options && data.button_options.options) {
+          setButtonOptions(data.button_options);
+        } else if (HARDCODED_OPTIONS[data.current_step]) {
+          setButtonOptions(HARDCODED_OPTIONS[data.current_step]);
+        } else {
+          setButtonOptions(null);
+        }
+        
+        // Use hardcoded sections if Claude doesn't provide them
+        if (data.section_questions && data.section_questions.questions) {
+          setSectionQuestions(data.section_questions);
+          setSectionAnswers({});
+        } else if (HARDCODED_SECTIONS[data.current_step]) {
+          setSectionQuestions(HARDCODED_SECTIONS[data.current_step]);
+          setSectionAnswers({});
+        }
         
         if (data.is_complete) {
           setIsComplete(true);
-          saveToGoogleSheet(updatedData);
+          saveToGoogleSheet({ ...collectedData, ...data });
         }
       }
     } catch (error) {
       console.error('Error:', error);
-      setMessages([...newMessages, { type: 'bot', text: "Sorry, please try again." }]);
+      setMessages([...newMessages, { type: 'bot', text: "Sorry, could you try again?" }]);
     }
     setIsLoading(false);
   };
 
-  const handleSectionSubmit = (section) => {
-    const sectionData = {};
-    const keys = Object.keys(sectionAnswers);
-    keys.forEach(key => {
-      sectionData[key] = sectionAnswers[key];
-    });
+  const handleLanguageSelect = (language) => {
+    if (language === 'OTHER') {
+      setCustomLangMode(true);
+      return;
+    }
+    if (isLoading) return;
+    setMessages(prev => [...prev, { type: 'user', text: language }]);
+    setCurrentStep('starting');
+    startAfterLanguage(language);
+  };
+
+  const handleSectionSubmit = () => {
+    const answerText = sectionQuestions.questions.map(q => {
+      const opt = q.options.find(o => o.value === sectionAnswers[q.key]);
+      return `${q.question}: ${opt?.label || 'N/A'}`;
+    }).join('\n');
     
+    // Store the numeric values in collectedData
+    const sectionData = {};
+    sectionQuestions.questions.forEach(q => {
+      sectionData[q.key] = sectionAnswers[q.key];
+    });
     setCollectedData(prev => ({ ...prev, ...sectionData }));
     
-    // Build summary for Claude
-    const summary = keys.map(key => {
-      const q = ui.questions[key] || key;
-      const optIndex = 3 - sectionAnswers[key]; // Convert 0-3 to index
-      const opts = ui.options[key] || DEFAULT_UI.options[key];
-      return `${q}: ${opts[optIndex] || sectionAnswers[key]}`;
-    }).join(', ');
-    
-    setSectionAnswers({});
-    sendMessage(summary);
+    sendMessage(answerText);
   };
 
-  const getCurrentSection = () => {
-    if (['env', 'exp', 'teach', 'support', 'mgmt'].includes(currentStep)) {
-      return currentStep;
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && inputValue.trim()) {
+      if (currentStep === 'language' && customLangMode) {
+        handleLanguageSelect(inputValue.trim());
+        setCustomLangMode(false);
+      } else {
+        sendMessage(inputValue.trim());
+      }
+      setInputValue('');
     }
-    return null;
   };
 
-  const section = getCurrentSection();
-  const sectionKeys = section ? {
-    env: ['env_classroom', 'env_facilities', 'env_location', 'env_schedule'],
-    exp: ['exp_activities', 'exp_homework', 'exp_materials', 'exp_progress'],
-    teach: ['teach_explanations', 'teach_preparation', 'teach_methods', 'teach_speaking'],
-    support: ['support_help', 'support_feedback', 'support_encouragement', 'support_atmosphere'],
-    mgmt: ['mgmt_timing', 'mgmt_fairness', 'mgmt_organization', 'mgmt_rules']
-  }[section] : [];
+  const allAnswered = sectionQuestions?.questions.every(q => sectionAnswers[q.key] !== undefined);
 
-  const allAnswered = section && sectionKeys.every(key => sectionAnswers[key] !== undefined);
-
+  // Styles
   const styles = {
-    container: { display: 'flex', flexDirection: 'column', height: '100vh', maxWidth: '448px', margin: '0 auto', backgroundColor: '#f3f4f6', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-    header: { backgroundColor: '#f97316', color: 'white', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' },
-    logo: { width: '40px', height: '40px', backgroundColor: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f97316', fontWeight: 'bold', fontSize: '14px' },
-    messagesContainer: { flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' },
-    messageBubble: (isUser) => ({ maxWidth: '85%', borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px', padding: '10px 14px', fontSize: '14px', whiteSpace: 'pre-line', backgroundColor: isUser ? '#f97316' : 'white', color: isUser ? 'white' : '#1f2937', boxShadow: isUser ? 'none' : '0 1px 2px rgba(0,0,0,0.1)', alignSelf: isUser ? 'flex-end' : 'flex-start' }),
-    inputArea: { padding: '12px', backgroundColor: '#f9fafb', borderTop: '1px solid #e5e7eb' },
-    languageGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '8px' },
-    langBtn: { padding: '10px', borderRadius: '12px', backgroundColor: 'white', border: '1px solid #e5e7eb', fontSize: '14px', cursor: 'pointer' },
-    optionBtn: { padding: '12px 16px', borderRadius: '12px', backgroundColor: 'white', border: '1px solid #e5e7eb', fontSize: '14px', cursor: 'pointer', width: '100%', marginBottom: '8px', textAlign: 'left' },
-    sectionCard: { backgroundColor: 'white', borderRadius: '16px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' },
-    sectionTitle: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '18px', fontWeight: '600', color: '#10B981', marginBottom: '20px' },
-    questionRow: { marginBottom: '20px' },
-    questionLabel: { fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '8px' },
-    slider: { width: '100%', height: '8px', borderRadius: '4px', appearance: 'none', background: 'linear-gradient(to right, #fbbf24, #10B981)', cursor: 'pointer' },
-    sliderLabel: { display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', color: '#f97316', fontWeight: '500' },
-    continueBtn: (enabled) => ({ width: '100%', padding: '14px', borderRadius: '12px', border: 'none', fontSize: '16px', fontWeight: '600', cursor: enabled ? 'pointer' : 'default', backgroundColor: enabled ? '#10B981' : '#e5e7eb', color: enabled ? 'white' : '#9ca3af' }),
-    skipBtn: { width: '100%', padding: '10px', marginTop: '8px', background: 'none', border: 'none', color: '#6b7280', fontSize: '14px', cursor: 'pointer' },
-    inputRow: { display: 'flex', gap: '8px' },
-    textInput: { flex: 1, padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '12px', fontSize: '14px', outline: 'none' },
-    sendBtn: (enabled) => ({ padding: '12px 20px', borderRadius: '12px', border: 'none', backgroundColor: enabled ? '#f97316' : '#e5e7eb', color: 'white', fontSize: '14px', fontWeight: '500', cursor: enabled ? 'pointer' : 'default' })
-  };
-
-  const getOptionLabel = (key, value) => {
-    const opts = ui.options[key] || DEFAULT_UI.options[key];
-    const index = 3 - value;
-    return opts[index] || '';
+    container: {
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100vh',
+      maxWidth: '448px',
+      margin: '0 auto',
+      backgroundColor: '#f3f4f6',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    },
+    header: {
+      backgroundColor: '#f97316',
+      color: 'white',
+      padding: '16px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px'
+    },
+    logo: {
+      width: '40px',
+      height: '40px',
+      backgroundColor: 'white',
+      borderRadius: '50%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#f97316',
+      fontWeight: 'bold',
+      fontSize: '14px'
+    },
+    headerTitle: {
+      margin: 0,
+      fontSize: '16px',
+      fontWeight: '600'
+    },
+    headerSubtitle: {
+      margin: 0,
+      fontSize: '12px',
+      opacity: 0.8
+    },
+    messagesContainer: {
+      flex: 1,
+      overflowY: 'auto',
+      padding: '16px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px'
+    },
+    messageRow: (isUser) => ({
+      display: 'flex',
+      justifyContent: isUser ? 'flex-end' : 'flex-start'
+    }),
+    messageBubble: (isUser) => ({
+      maxWidth: '85%',
+      borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+      padding: '10px 14px',
+      fontSize: '14px',
+      whiteSpace: 'pre-line',
+      backgroundColor: isUser ? '#f97316' : 'white',
+      color: isUser ? 'white' : '#1f2937',
+      boxShadow: isUser ? 'none' : '0 1px 2px rgba(0,0,0,0.1)'
+    }),
+    sectionCard: {
+      backgroundColor: 'white',
+      border: '1px solid #e5e7eb',
+      borderRadius: '12px',
+      padding: '16px',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+    },
+    sectionTitle: {
+      fontWeight: '600',
+      color: '#1f2937',
+      marginBottom: '12px',
+      fontSize: '15px'
+    },
+    questionBlock: {
+      marginBottom: '16px'
+    },
+    questionText: {
+      fontSize: '14px',
+      fontWeight: '500',
+      color: '#374151',
+      marginBottom: '8px'
+    },
+    optionsGrid: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '6px'
+    },
+    optionButton: (isSelected, value) => ({
+      fontSize: '12px',
+      padding: '8px',
+      borderRadius: '8px',
+      border: '1px solid',
+      cursor: 'pointer',
+      transition: 'all 0.15s',
+      backgroundColor: isSelected
+        ? (value >= 2 ? '#dcfce7' : '#fef3c7')
+        : '#f9fafb',
+      borderColor: isSelected
+        ? (value >= 2 ? '#86efac' : '#fcd34d')
+        : '#e5e7eb',
+      color: isSelected
+        ? (value >= 2 ? '#166534' : '#92400e')
+        : '#374151'
+    }),
+    submitButton: (enabled) => ({
+      width: '100%',
+      marginTop: '12px',
+      padding: '10px',
+      borderRadius: '12px',
+      border: 'none',
+      fontWeight: '500',
+      cursor: enabled ? 'pointer' : 'default',
+      backgroundColor: enabled ? '#f97316' : '#f3f4f6',
+      color: enabled ? 'white' : '#9ca3af'
+    }),
+    typingIndicator: {
+      display: 'flex',
+      justifyContent: 'flex-start'
+    },
+    typingBubble: {
+      backgroundColor: 'white',
+      borderRadius: '16px',
+      padding: '12px 16px',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+      display: 'flex',
+      gap: '4px'
+    },
+    typingDot: (delay) => ({
+      width: '8px',
+      height: '8px',
+      backgroundColor: '#9ca3af',
+      borderRadius: '50%',
+      animation: 'bounce 1.4s infinite ease-in-out',
+      animationDelay: delay
+    }),
+    inputArea: {
+      padding: '12px',
+      backgroundColor: '#f9fafb',
+      borderTop: '1px solid #e5e7eb'
+    },
+    completedText: {
+      textAlign: 'center',
+      color: '#6b7280',
+      fontSize: '14px'
+    },
+    languageGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '8px',
+      marginBottom: '8px'
+    },
+    languageButton: {
+      padding: '8px 12px',
+      borderRadius: '12px',
+      backgroundColor: 'white',
+      border: '1px solid #e5e7eb',
+      fontSize: '14px',
+      cursor: 'pointer',
+      transition: 'all 0.15s'
+    },
+    customLangLink: {
+      width: '100%',
+      padding: '8px',
+      fontSize: '14px',
+      color: '#6b7280',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer'
+    },
+    customLangInput: {
+      display: 'flex',
+      gap: '8px'
+    },
+    textInput: {
+      flex: 1,
+      padding: '8px 12px',
+      border: '1px solid #e5e7eb',
+      borderRadius: '12px',
+      fontSize: '14px',
+      outline: 'none'
+    },
+    goButton: (enabled) => ({
+      padding: '8px 16px',
+      backgroundColor: enabled ? '#f97316' : '#e5e7eb',
+      color: enabled ? 'white' : '#9ca3af',
+      border: 'none',
+      borderRadius: '12px',
+      fontSize: '14px',
+      cursor: enabled ? 'pointer' : 'default'
+    }),
+    buttonOptionsGrid: (isTeacher) => ({
+      display: 'grid',
+      gridTemplateColumns: isTeacher ? '1fr 1fr' : '1fr',
+      gap: '8px'
+    }),
+    optionBtn: {
+      padding: '12px 16px',
+      borderRadius: '12px',
+      backgroundColor: 'white',
+      border: '1px solid #e5e7eb',
+      fontSize: '14px',
+      cursor: 'pointer',
+      transition: 'all 0.15s'
+    },
+    inputRow: {
+      display: 'flex',
+      gap: '8px'
+    },
+    sendButton: (enabled) => ({
+      width: '40px',
+      height: '40px',
+      borderRadius: '50%',
+      backgroundColor: enabled ? '#f97316' : '#e5e7eb',
+      color: 'white',
+      border: 'none',
+      cursor: enabled ? 'pointer' : 'default',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }),
+    skipButton: {
+      width: '100%',
+      marginTop: '8px',
+      padding: '8px',
+      fontSize: '14px',
+      color: '#6b7280',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer'
+    }
   };
 
   return (
-    <div style={styles.container}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100vh',
+      maxWidth: '448px',
+      margin: '0 auto',
+      backgroundColor: '#f3f4f6',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
       <style>{`
-        @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
-        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; background: white; border: 3px solid #f97316; border-radius: 50%; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        @keyframes bounce {
+          0%, 60%, 100% { transform: translateY(0); }
+          30% { transform: translateY(-4px); }
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
       `}</style>
 
+      {/* Header */}
       <div style={styles.header}>
         <div style={styles.logo}>ES</div>
         <div>
-          <h1 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>ES Feedback</h1>
-          <p style={{ margin: 0, fontSize: '12px', opacity: 0.8 }}>Tell us about your experience</p>
+          <h1 style={styles.headerTitle}>ES Feedback</h1>
+          <p style={styles.headerSubtitle}>Tell us about your experience</p>
         </div>
       </div>
 
+      {/* Messages */}
       <div style={styles.messagesContainer}>
         {messages.map((msg, idx) => (
-          <div key={idx} style={styles.messageBubble(msg.type === 'user')}>{msg.text}</div>
+          <div key={idx} style={styles.messageRow(msg.type === 'user')}>
+            <div style={styles.messageBubble(msg.type === 'user')}>{msg.text}</div>
+          </div>
         ))}
 
-        {/* Section Rating Card */}
-        {section && (
+        {/* Section Questions Card */}
+        {sectionQuestions && (
           <div style={styles.sectionCard}>
-            <div style={styles.sectionTitle}>
-              <span>{SECTION_ICONS[section]}</span>
-              <span>{ui.sectionTitles[section]}</span>
-            </div>
-            
-            {sectionKeys.map(key => (
-              <div key={key} style={styles.questionRow}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={styles.questionLabel}>{ui.questions[key]}</span>
-                  {sectionAnswers[key] !== undefined && (
-                    <span style={styles.sliderLabel}>
-                      <span>😊</span>
-                      <span>{getOptionLabel(key, sectionAnswers[key])}</span>
-                    </span>
-                  )}
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="3"
-                  value={sectionAnswers[key] ?? 2}
-                  onChange={(e) => setSectionAnswers(prev => ({ ...prev, [key]: parseInt(e.target.value) }))}
-                  style={styles.slider}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                  {[0, 1, 2, 3].map(i => (
-                    <div key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: (sectionAnswers[key] ?? 2) === i ? '#f97316' : '#e5e7eb' }} />
+            <h3 style={styles.sectionTitle}>{sectionQuestions.title}</h3>
+            {sectionQuestions.questions.map(q => (
+              <div key={q.key} style={styles.questionBlock}>
+                <p style={styles.questionText}>{q.question}</p>
+                <div style={styles.optionsGrid}>
+                  {q.options.map((opt, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setSectionAnswers(prev => ({ ...prev, [q.key]: opt.value }))}
+                      style={styles.optionButton(sectionAnswers[q.key] === opt.value, opt.value)}
+                    >
+                      {opt.label}
+                    </button>
                   ))}
                 </div>
               </div>
             ))}
-            
             <button
-              onClick={() => handleSectionSubmit(section)}
+              onClick={handleSectionSubmit}
               disabled={!allAnswered}
-              style={styles.continueBtn(allAnswered)}
+              style={styles.submitButton(allAnswered)}
             >
-              {ui.buttons.continue}
+              {allAnswered ? 'Continue â†’' : 'Answer all questions'}
             </button>
           </div>
         )}
 
+        {/* Typing Indicator */}
         {isLoading && (
-          <div style={{ display: 'flex', gap: '4px', padding: '12px', backgroundColor: 'white', borderRadius: '16px', width: 'fit-content', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-            {[0, 1, 2].map(i => (
-              <div key={i} style={{ width: '8px', height: '8px', backgroundColor: '#9ca3af', borderRadius: '50%', animation: 'bounce 1.4s infinite', animationDelay: `${i * 0.15}s` }} />
-            ))}
+          <div style={styles.typingIndicator}>
+            <div style={styles.typingBubble}>
+              <span style={styles.typingDot('0ms')} />
+              <span style={styles.typingDot('150ms')} />
+              <span style={styles.typingDot('300ms')} />
+            </div>
           </div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input Area */}
       <div style={styles.inputArea}>
         {isComplete ? (
-          <p style={{ textAlign: 'center', color: '#10B981', fontWeight: '500' }}>{ui.buttons.submitted}</p>
+          <p style={styles.completedText}>âœ“ Feedback submitted</p>
         ) : currentStep === 'language' ? (
-          <div style={styles.languageGrid}>
-            {LANGUAGES.map((lang, i) => (
-              <button key={i} onClick={() => handleLanguageSelect(lang.value)} style={styles.langBtn}
-                onMouseEnter={(e) => { e.target.style.backgroundColor = '#f97316'; e.target.style.color = 'white'; }}
-                onMouseLeave={(e) => { e.target.style.backgroundColor = 'white'; e.target.style.color = 'black'; }}>
-                {lang.label}
-              </button>
-            ))}
-          </div>
-        ) : currentStep === 'campus' ? (
-          <div>
-            {['Dubai', 'London'].map(campus => (
-              <button key={campus} onClick={() => sendMessage(campus)} style={styles.optionBtn}
-                onMouseEnter={(e) => { e.target.style.backgroundColor = '#f97316'; e.target.style.color = 'white'; }}
-                onMouseLeave={(e) => { e.target.style.backgroundColor = 'white'; e.target.style.color = 'black'; }}>
-                {campus}
-              </button>
-            ))}
-          </div>
-        ) : currentStep === 'teacher' ? (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            {TEACHERS.map(teacher => (
-              <button key={teacher} onClick={() => sendMessage(teacher)} style={{ ...styles.optionBtn, marginBottom: 0 }}
-                onMouseEnter={(e) => { e.target.style.backgroundColor = '#f97316'; e.target.style.color = 'white'; }}
-                onMouseLeave={(e) => { e.target.style.backgroundColor = 'white'; e.target.style.color = 'black'; }}>
-                {teacher}
-              </button>
-            ))}
-          </div>
-        ) : currentStep === 'duration' ? (
-          <div>
-            {ui.duration.map(dur => (
-              <button key={dur} onClick={() => sendMessage(dur)} style={styles.optionBtn}
-                onMouseEnter={(e) => { e.target.style.backgroundColor = '#f97316'; e.target.style.color = 'white'; }}
-                onMouseLeave={(e) => { e.target.style.backgroundColor = 'white'; e.target.style.color = 'black'; }}>
-                {dur}
-              </button>
-            ))}
-          </div>
-        ) : !section && (
+          <>
+            <div style={styles.languageGrid}>
+              {LANGUAGES.map((lang, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleLanguageSelect(lang.value)}
+                  disabled={isLoading}
+                  style={{
+                    ...styles.languageButton,
+                    opacity: isLoading ? 0.5 : 1,
+                    cursor: isLoading ? 'not-allowed' : 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isLoading) {
+                      e.target.style.backgroundColor = '#f97316';
+                      e.target.style.color = 'white';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'white';
+                    e.target.style.color = 'black';
+                  }}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+            {customLangMode && (
+              <div style={styles.customLangInput}>
+                <input
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Type your language..."
+                  style={styles.textInput}
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    handleLanguageSelect(inputValue.trim());
+                    setInputValue('');
+                    setCustomLangMode(false);
+                  }}
+                  disabled={!inputValue.trim()}
+                  style={styles.goButton(!!inputValue.trim())}
+                >
+                  Go
+                </button>
+              </div>
+            )}
+          </>
+        ) : buttonOptions && buttonOptions.options ? (
+          buttonOptions.type === 'teacher' ? (
+            <select
+              onChange={(e) => e.target.value && sendMessage(e.target.value)}
+              defaultValue=""
+              disabled={isLoading}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '12px',
+                border: '1px solid #e5e7eb',
+                fontSize: '14px',
+                backgroundColor: isLoading ? '#f3f4f6' : 'white',
+                cursor: isLoading ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <option value="" disabled>Select your teacher...</option>
+              {buttonOptions.options.map((opt, i) => (
+                <option key={i} value={opt.label}>{opt.label}</option>
+              ))}
+            </select>
+          ) : (
+            <div style={styles.buttonOptionsGrid(false)}>
+              {buttonOptions.options.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendMessage(opt.label)}
+                  disabled={isLoading}
+                  style={{
+                    ...styles.optionBtn,
+                    opacity: isLoading ? 0.5 : 1,
+                    cursor: isLoading ? 'not-allowed' : 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isLoading) {
+                      e.target.style.backgroundColor = '#f97316';
+                      e.target.style.color = 'white';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'white';
+                    e.target.style.color = 'black';
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )
+        ) : !sectionQuestions && (
           <>
             <div style={styles.inputRow}>
               <input
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
-                onKeyPress={(e) => { if (e.key === 'Enter' && inputValue.trim()) { sendMessage(inputValue.trim()); setInputValue(''); } }}
-                placeholder={ui.buttons.placeholder}
+                onKeyPress={handleKeyPress}
+                placeholder="Type your response..."
                 style={styles.textInput}
               />
               <button
-                onClick={() => { sendMessage(inputValue.trim()); setInputValue(''); }}
+                onClick={() => {
+                  sendMessage(inputValue.trim());
+                  setInputValue('');
+                }}
                 disabled={!inputValue.trim() || isLoading}
-                style={styles.sendBtn(inputValue.trim() && !isLoading)}
+                style={styles.sendButton(inputValue.trim() && !isLoading)}
               >
-                {ui.buttons.send}
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
               </button>
             </div>
-            <button onClick={() => sendMessage(ui.buttons.nothingToAdd)} style={styles.skipBtn}>
-              {ui.buttons.nothingToAdd}
+            <button
+              onClick={() => sendMessage("Nothing to add")}
+              disabled={isLoading}
+              style={styles.skipButton}
+            >
+              Nothing to add â†’
             </button>
           </>
         )}
