@@ -1,104 +1,117 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-// Simple B1-level prompts for Claude - translation + empathy only
+// Simple prompts for Claude - SHORT responses only
 const getClaudePrompt = (step, language, context = {}) => {
-  const baseInstruction = `You are a friendly assistant for ES World English school. 
+  const baseInstruction = `You are a feedback assistant for ES World English school.
 RULES:
 - Respond in ${language}
-- Use simple words (CEFR B1 level)
-- Keep responses to 1-2 short sentences
-- Be warm but brief
-- Never ask questions - just make a statement or react`;
+- Use simple words (CEFR B1)
+- ONE sentence only - be brief
+- Be warm but not overly friendly
+- No exclamation marks
+- Never say "wonderful", "amazing", "fantastic"`;
 
   const prompts = {
     welcome: `${baseInstruction}
-Say a brief welcome and tell them to choose their campus (Dubai or London).`,
+Say briefly: welcome, which campus (Dubai or London)?`,
     
     campus_selected: `${baseInstruction}
-They chose ${context.campus}. React briefly and ask for their teacher's name.`,
+They chose ${context.campus}. Brief reaction, ask teacher's name.`,
     
     teacher_selected: `${baseInstruction}
-Their teacher is ${context.teacher}. React briefly and ask how long they have been studying.`,
+Teacher is ${context.teacher}. Brief reaction, ask how long studying.`,
     
     duration_selected: `${baseInstruction}
-They have been studying for ${context.duration}. React briefly and say "Now some questions about the classroom and school."`,
-    
-    env_intro: `${baseInstruction}
-Introduce the environment section. Say something like "Let's talk about your classroom and the school."`,
+Studying for ${context.duration}. Say "Now some questions about the classroom."`,
     
     env_done: `${baseInstruction}
-They rated the environment. Their scores: classroom=${context.env_classroom}/3, facilities=${context.env_facilities}/3, location=${context.env_location}/3, schedule=${context.env_schedule}/3.
-React briefly based on scores (if low, show understanding; if high, show happiness). Then ask if they want to add anything.`,
+Environment scores: classroom=${context.env_classroom}/3, facilities=${context.env_facilities}/3.
+${context.env_classroom <= 1 || context.env_facilities <= 1 ? 'Show understanding for low scores.' : 'Brief thanks.'}
+Ask: anything to add?`,
     
     env_comment_done: `${baseInstruction}
-${context.comment ? `They said: "${context.comment}"` : 'They had nothing to add.'}
-React briefly with empathy if they shared something. Then say "Now about your learning experience."`,
+${context.comment ? `They said: "${context.comment}". Brief acknowledgment.` : 'Nothing to add.'}
+Say: "Now about your classes."`,
     
     exp_done: `${baseInstruction}
-They rated learning experience. Scores: activities=${context.exp_activities}/3, homework=${context.exp_homework}/3, materials=${context.exp_materials}/3, progress=${context.exp_progress}/3.
-React briefly based on scores. Ask if they want to add anything.`,
+Experience scores: activities=${context.exp_activities}/3, progress=${context.exp_progress}/3.
+${context.exp_progress <= 1 ? 'Show understanding.' : 'Brief thanks.'}
+Ask: anything to add?`,
     
     exp_comment_done: `${baseInstruction}
-${context.comment ? `They said: "${context.comment}"` : 'They had nothing to add.'}
-React briefly. Then say "Now about your teacher's teaching."`,
+${context.comment ? `They said: "${context.comment}". Brief acknowledgment.` : 'Nothing to add.'}
+Say: "Now about your teacher."`,
     
     teach_done: `${baseInstruction}
-They rated teaching. Scores: explanations=${context.teach_explanations}/3, preparation=${context.teach_preparation}/3, methods=${context.teach_methods}/3, speaking=${context.teach_speaking}/3.
-React briefly based on scores. Ask if they want to add anything.`,
+Teaching scores: explanations=${context.teach_explanations}/3, methods=${context.teach_methods}/3.
+${context.teach_explanations <= 1 ? 'Show understanding.' : 'Brief thanks.'}
+Ask: anything to add?`,
     
     teach_comment_done: `${baseInstruction}
-${context.comment ? `They said: "${context.comment}"` : 'They had nothing to add.'}
-React briefly. Then say "Now about help and support."`,
+${context.comment ? `They said: "${context.comment}". Brief acknowledgment.` : 'Nothing to add.'}
+Say: "Now about help and support."`,
     
     support_done: `${baseInstruction}
-They rated support. Scores: help=${context.support_help}/3, feedback=${context.support_feedback}/3, encouragement=${context.support_encouragement}/3, atmosphere=${context.support_atmosphere}/3.
-React briefly based on scores. Ask if they want to add anything.`,
+Support scores: help=${context.support_help}/3, atmosphere=${context.support_atmosphere}/3.
+Brief thanks. Ask: anything to add?`,
     
     support_comment_done: `${baseInstruction}
-${context.comment ? `They said: "${context.comment}"` : 'They had nothing to add.'}
-React briefly. Then say "Last section - about how the class is organized."`,
+${context.comment ? `They said: "${context.comment}". Brief acknowledgment.` : 'Nothing to add.'}
+Say: "Last section - class organization."`,
     
     mgmt_done: `${baseInstruction}
-They rated class management. Scores: timing=${context.mgmt_timing}/3, fairness=${context.mgmt_fairness}/3, organization=${context.mgmt_organization}/3, rules=${context.mgmt_rules}/3.
-React briefly based on scores. Ask if they want to add anything.`,
+Management scores: timing=${context.mgmt_timing}/3, organization=${context.mgmt_organization}/3.
+Brief thanks. Ask: anything to add?`,
     
     mgmt_comment_done: `${baseInstruction}
-${context.comment ? `They said: "${context.comment}"` : 'They had nothing to add.'}
-React briefly. Then ask "Any other comments or ideas for us?"`,
+${context.comment ? `They said: "${context.comment}". Brief acknowledgment.` : 'Nothing to add.'}
+Ask: "Any other feedback?"`,
     
     final_done: `${baseInstruction}
-${context.comment ? `Their final comment: "${context.comment}"` : 'They had no final comments.'}
-Thank them warmly for their feedback. Tell them it helps the school. Keep it short and friendly.`,
+${context.comment ? `Final comment: "${context.comment}"` : 'No final comment.'}
+Thank them briefly. Say it helps the school.`,
   };
 
   return prompts[step] || prompts.welcome;
 };
 
-// Translate comment to English for storage
+// Translate comment to English
 const getTranslationPrompt = (comment, fromLanguage) => {
   if (fromLanguage === 'English') return null;
-  return `Translate this student feedback from ${fromLanguage} to English. Only respond with the translation, nothing else.
-
-"${comment}"`;
+  return `Translate to English. Only the translation, nothing else: "${comment}"`;
 };
 
-// Hardcoded options
+// Primary languages (top 6)
+const PRIMARY_LANGUAGES = [
+  { label: 'English', value: 'English' },
+  { label: 'العربية', value: 'Arabic' },
+  { label: 'Español', value: 'Spanish' },
+  { label: '中文', value: 'Chinese' },
+  { label: 'Português', value: 'Portuguese' },
+  { label: 'Français', value: 'French' }
+];
+
+// Other languages
+const OTHER_LANGUAGES = [
+  { label: 'Türkçe', value: 'Turkish' },
+  { label: 'Русский', value: 'Russian' },
+  { label: 'ไทย', value: 'Thai' },
+  { label: 'فارسی', value: 'Farsi' },
+  { label: '한국어', value: 'Korean' },
+  { label: '日本語', value: 'Japanese' },
+  { label: 'Tiếng Việt', value: 'Vietnamese' },
+  { label: 'Deutsch', value: 'German' },
+  { label: 'Italiano', value: 'Italian' }
+];
+
 const CAMPUS_OPTIONS = [
   { label: 'Dubai', value: 'Dubai' },
   { label: 'London', value: 'London' }
 ];
 
 const TEACHER_OPTIONS = [
-  { label: 'Richard', value: 'Richard' },
-  { label: 'Ryan', value: 'Ryan' },
-  { label: 'Majid', value: 'Majid' },
-  { label: 'Tom', value: 'Tom' },
-  { label: 'Scott', value: 'Scott' },
-  { label: 'Gemma', value: 'Gemma' },
-  { label: 'Jenna', value: 'Jenna' },
-  { label: 'Danya', value: 'Danya' },
-  { label: 'Mariam', value: 'Mariam' },
-  { label: 'Moe', value: 'Moe' }
+  'Richard', 'Ryan', 'Majid', 'Tom', 'Scott', 
+  'Gemma', 'Jenna', 'Danya', 'Mariam', 'Moe'
 ];
 
 const DURATION_OPTIONS = [
@@ -108,174 +121,66 @@ const DURATION_OPTIONS = [
   { label: '2+ months', value: '2+ months' }
 ];
 
-const LANGUAGES = [
-  { label: 'English', value: 'English' },
-  { label: 'العربية', value: 'Arabic' },
-  { label: 'Español', value: 'Spanish' },
-  { label: '中文', value: 'Chinese' },
-  { label: 'Português', value: 'Portuguese' },
-  { label: 'Türkçe', value: 'Turkish' },
-  { label: 'Русский', value: 'Russian' },
-  { label: 'ไทย', value: 'Thai' },
-  { label: 'فارسی', value: 'Farsi' },
-  { label: '한국어', value: 'Korean' },
-  { label: '日本語', value: 'Japanese' },
-  { label: 'Tiếng Việt', value: 'Vietnamese' },
-  { label: 'Français', value: 'French' },
-  { label: 'Deutsch', value: 'German' },
-  { label: 'Italiano', value: 'Italian' }
-];
-
-// Section definitions
+// Section definitions with slider config
 const SECTIONS = {
   env: {
     title: 'Learning Environment',
+    icon: '🏫',
+    color: '#3B82F6',
     questions: [
-      { key: 'env_classroom', question: 'How comfortable is your classroom?', options: [
-        { label: 'Very comfortable', value: 3 },
-        { label: 'Comfortable enough', value: 2 },
-        { label: 'Sometimes uncomfortable', value: 1 },
-        { label: 'Often uncomfortable', value: 0 }
-      ]},
-      { key: 'env_facilities', question: 'Are the school facilities good?', options: [
-        { label: 'Excellent', value: 3 },
-        { label: 'Good', value: 2 },
-        { label: 'Adequate', value: 1 },
-        { label: 'Poor', value: 0 }
-      ]},
-      { key: 'env_location', question: 'Is the location convenient?', options: [
-        { label: 'Very convenient', value: 3 },
-        { label: 'Convenient enough', value: 2 },
-        { label: 'A bit inconvenient', value: 1 },
-        { label: 'Very inconvenient', value: 0 }
-      ]},
-      { key: 'env_schedule', question: 'Does your class schedule work for you?', options: [
-        { label: 'Works perfectly', value: 3 },
-        { label: 'Works well', value: 2 },
-        { label: 'Some problems', value: 1 },
-        { label: 'Does not work', value: 0 }
-      ]}
+      { key: 'env_classroom', label: 'Classroom comfort', left: '😟', right: '😊' },
+      { key: 'env_facilities', label: 'School facilities', left: '😟', right: '😊' },
+      { key: 'env_location', label: 'Location', left: '😟', right: '😊' },
+      { key: 'env_schedule', label: 'Class schedule', left: '😟', right: '😊' }
     ]
   },
   exp: {
     title: 'Learning Experience',
+    icon: '📚',
+    color: '#10B981',
     questions: [
-      { key: 'exp_activities', question: 'Are class activities helpful?', options: [
-        { label: 'Very helpful', value: 3 },
-        { label: 'Helpful', value: 2 },
-        { label: 'A little helpful', value: 1 },
-        { label: 'Not helpful', value: 0 }
-      ]},
-      { key: 'exp_homework', question: 'Is the homework right for you?', options: [
-        { label: 'Perfect amount', value: 3 },
-        { label: 'About right', value: 2 },
-        { label: 'Too much or too little', value: 1 },
-        { label: 'Not good', value: 0 }
-      ]},
-      { key: 'exp_materials', question: 'Do the materials help you learn?', options: [
-        { label: 'Very helpful', value: 3 },
-        { label: 'Helpful', value: 2 },
-        { label: 'A little helpful', value: 1 },
-        { label: 'Not helpful', value: 0 }
-      ]},
-      { key: 'exp_progress', question: 'Is your English getting better?', options: [
-        { label: 'A lot better', value: 3 },
-        { label: 'Better', value: 2 },
-        { label: 'A little better', value: 1 },
-        { label: 'Not better', value: 0 }
-      ]}
+      { key: 'exp_activities', label: 'Class activities', left: '😟', right: '😊' },
+      { key: 'exp_homework', label: 'Homework', left: '😟', right: '😊' },
+      { key: 'exp_materials', label: 'Materials', left: '😟', right: '😊' },
+      { key: 'exp_progress', label: 'Your progress', left: '😟', right: '😊' }
     ]
   },
   teach: {
     title: 'Teaching Quality',
+    icon: '👩‍🏫',
+    color: '#8B5CF6',
     questions: [
-      { key: 'teach_explanations', question: 'Are explanations clear?', options: [
-        { label: 'Very clear', value: 3 },
-        { label: 'Clear', value: 2 },
-        { label: 'Sometimes unclear', value: 1 },
-        { label: 'Often unclear', value: 0 }
-      ]},
-      { key: 'teach_preparation', question: 'Is the teacher prepared?', options: [
-        { label: 'Always prepared', value: 3 },
-        { label: 'Usually prepared', value: 2 },
-        { label: 'Sometimes not prepared', value: 1 },
-        { label: 'Often not prepared', value: 0 }
-      ]},
-      { key: 'teach_methods', question: 'Do the teaching methods work?', options: [
-        { label: 'Very well', value: 3 },
-        { label: 'Well', value: 2 },
-        { label: 'A little', value: 1 },
-        { label: 'Not well', value: 0 }
-      ]},
-      { key: 'teach_speaking', question: 'Do you get enough speaking practice?', options: [
-        { label: 'Plenty', value: 3 },
-        { label: 'Enough', value: 2 },
-        { label: 'Not enough', value: 1 },
-        { label: 'Very little', value: 0 }
-      ]}
+      { key: 'teach_explanations', label: 'Explanations', left: '😟', right: '😊' },
+      { key: 'teach_preparation', label: 'Preparation', left: '😟', right: '😊' },
+      { key: 'teach_methods', label: 'Teaching methods', left: '😟', right: '😊' },
+      { key: 'teach_speaking', label: 'Speaking practice', left: '😟', right: '😊' }
     ]
   },
   support: {
     title: 'Student Support',
+    icon: '🤝',
+    color: '#F59E0B',
     questions: [
-      { key: 'support_help', question: 'Do you get help when you need it?', options: [
-        { label: 'Always', value: 3 },
-        { label: 'Usually', value: 2 },
-        { label: 'Sometimes', value: 1 },
-        { label: 'Rarely', value: 0 }
-      ]},
-      { key: 'support_feedback', question: 'Is feedback on your work helpful?', options: [
-        { label: 'Very helpful', value: 3 },
-        { label: 'Helpful', value: 2 },
-        { label: 'A little helpful', value: 1 },
-        { label: 'Not helpful', value: 0 }
-      ]},
-      { key: 'support_encouragement', question: 'Does the teacher encourage you?', options: [
-        { label: 'Very much', value: 3 },
-        { label: 'Yes', value: 2 },
-        { label: 'A little', value: 1 },
-        { label: 'No', value: 0 }
-      ]},
-      { key: 'support_atmosphere', question: 'Is the class atmosphere good?', options: [
-        { label: 'Excellent', value: 3 },
-        { label: 'Good', value: 2 },
-        { label: 'Okay', value: 1 },
-        { label: 'Not good', value: 0 }
-      ]}
+      { key: 'support_help', label: 'Getting help', left: '😟', right: '😊' },
+      { key: 'support_feedback', label: 'Feedback quality', left: '😟', right: '😊' },
+      { key: 'support_encouragement', label: 'Encouragement', left: '😟', right: '😊' },
+      { key: 'support_atmosphere', label: 'Class atmosphere', left: '😟', right: '😊' }
     ]
   },
   mgmt: {
     title: 'Class Management',
+    icon: '📋',
+    color: '#EF4444',
     questions: [
-      { key: 'mgmt_timing', question: 'Is class time used well?', options: [
-        { label: 'Very well', value: 3 },
-        { label: 'Well', value: 2 },
-        { label: 'Could be better', value: 1 },
-        { label: 'Not well', value: 0 }
-      ]},
-      { key: 'mgmt_fairness', question: 'Does everyone get equal attention?', options: [
-        { label: 'Yes, always', value: 3 },
-        { label: 'Usually', value: 2 },
-        { label: 'Sometimes', value: 1 },
-        { label: 'No', value: 0 }
-      ]},
-      { key: 'mgmt_organization', question: 'Are lessons well organized?', options: [
-        { label: 'Very organized', value: 3 },
-        { label: 'Organized', value: 2 },
-        { label: 'A bit messy', value: 1 },
-        { label: 'Disorganized', value: 0 }
-      ]},
-      { key: 'mgmt_rules', question: 'Are class rules clear and fair?', options: [
-        { label: 'Very clear and fair', value: 3 },
-        { label: 'Clear and fair', value: 2 },
-        { label: 'Somewhat', value: 1 },
-        { label: 'Not clear or fair', value: 0 }
-      ]}
+      { key: 'mgmt_timing', label: 'Time management', left: '😟', right: '😊' },
+      { key: 'mgmt_fairness', label: 'Fairness', left: '😟', right: '😊' },
+      { key: 'mgmt_organization', label: 'Organization', left: '😟', right: '😊' },
+      { key: 'mgmt_rules', label: 'Class rules', left: '😟', right: '😊' }
     ]
   }
 };
 
-// Steps enum
+// Steps
 const STEPS = {
   LANGUAGE: 'language',
   CAMPUS: 'campus',
@@ -295,24 +200,14 @@ const STEPS = {
   COMPLETE: 'complete'
 };
 
-// Step flow
 const STEP_ORDER = [
-  STEPS.LANGUAGE,
-  STEPS.CAMPUS,
-  STEPS.TEACHER,
-  STEPS.DURATION,
-  STEPS.ENV_SECTION,
-  STEPS.ENV_COMMENT,
-  STEPS.EXP_SECTION,
-  STEPS.EXP_COMMENT,
-  STEPS.TEACH_SECTION,
-  STEPS.TEACH_COMMENT,
-  STEPS.SUPPORT_SECTION,
-  STEPS.SUPPORT_COMMENT,
-  STEPS.MGMT_SECTION,
-  STEPS.MGMT_COMMENT,
-  STEPS.FINAL_COMMENT,
-  STEPS.COMPLETE
+  STEPS.LANGUAGE, STEPS.CAMPUS, STEPS.TEACHER, STEPS.DURATION,
+  STEPS.ENV_SECTION, STEPS.ENV_COMMENT,
+  STEPS.EXP_SECTION, STEPS.EXP_COMMENT,
+  STEPS.TEACH_SECTION, STEPS.TEACH_COMMENT,
+  STEPS.SUPPORT_SECTION, STEPS.SUPPORT_COMMENT,
+  STEPS.MGMT_SECTION, STEPS.MGMT_COMMENT,
+  STEPS.FINAL_COMMENT, STEPS.COMPLETE
 ];
 
 const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
@@ -372,7 +267,7 @@ const saveToGoogleSheet = async (data) => {
   console.log('=== SAVING TO SHEET ===', rowData);
 
   if (!GOOGLE_SCRIPT_URL) {
-    console.error('GOOGLE_SCRIPT_URL not set!');
+    console.error('GOOGLE_SCRIPT_URL not set');
     return;
   }
 
@@ -380,33 +275,185 @@ const saveToGoogleSheet = async (data) => {
     const formData = new FormData();
     formData.append('data', btoa(unescape(encodeURIComponent(JSON.stringify(rowData)))));
     formData.append('encoding', 'base64');
-
-    await fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: formData
-    });
-    
-    console.log('Data sent to Google Sheet');
+    await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: formData });
+    console.log('Data sent');
   } catch (error) {
-    console.error('Error saving:', error);
+    console.error('Save error:', error);
   }
+};
+
+// Slider component
+const RatingSlider = ({ question, value, onChange }) => {
+  const [localValue, setLocalValue] = useState(value ?? 2);
+
+  useEffect(() => {
+    if (value !== undefined) setLocalValue(value);
+  }, [value]);
+
+  const handleChange = (e) => {
+    const newValue = parseInt(e.target.value);
+    setLocalValue(newValue);
+    onChange(newValue);
+  };
+
+  const getTrackColor = () => {
+    if (localValue >= 2.5) return '#22C55E';
+    if (localValue >= 1.5) return '#EAB308';
+    if (localValue >= 0.5) return '#F97316';
+    return '#EF4444';
+  };
+
+  const getEmoji = () => {
+    if (localValue >= 2.5) return '😊';
+    if (localValue >= 1.5) return '🙂';
+    if (localValue >= 0.5) return '😐';
+    return '😟';
+  };
+
+  return (
+    <div style={{ marginBottom: '18px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+        <span style={{ fontSize: '14px', color: '#374151', fontWeight: '500' }}>{question.label}</span>
+        <span style={{ fontSize: '20px' }}>{getEmoji()}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <span style={{ fontSize: '18px' }}>{question.left}</span>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <input
+            type="range"
+            min="0"
+            max="3"
+            step="1"
+            value={localValue}
+            onChange={handleChange}
+            style={{
+              width: '100%',
+              height: '8px',
+              borderRadius: '4px',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              background: `linear-gradient(to right, ${getTrackColor()} 0%, ${getTrackColor()} ${(localValue/3)*100}%, #E5E7EB ${(localValue/3)*100}%, #E5E7EB 100%)`,
+              cursor: 'pointer',
+            }}
+          />
+          <style>{`
+            input[type="range"]::-webkit-slider-thumb {
+              -webkit-appearance: none;
+              appearance: none;
+              width: 24px;
+              height: 24px;
+              border-radius: 50%;
+              background: white;
+              border: 3px solid ${getTrackColor()};
+              cursor: pointer;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+            input[type="range"]::-moz-range-thumb {
+              width: 24px;
+              height: 24px;
+              border-radius: 50%;
+              background: white;
+              border: 3px solid ${getTrackColor()};
+              cursor: pointer;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            }
+          `}</style>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', padding: '0 4px' }}>
+            {[0, 1, 2, 3].map(n => (
+              <div
+                key={n}
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: localValue >= n ? getTrackColor() : '#D1D5DB'
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <span style={{ fontSize: '18px' }}>{question.right}</span>
+      </div>
+    </div>
+  );
+};
+
+// Section card with sliders
+const SectionCard = ({ section, values, onChange, onSubmit }) => {
+  const [localValues, setLocalValues] = useState(() => {
+    const initial = {};
+    section.questions.forEach(q => { initial[q.key] = values[q.key] ?? 2; });
+    return initial;
+  });
+
+  const handleSliderChange = (key, value) => {
+    setLocalValues(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleSubmit = () => {
+    onChange(localValues);
+    onSubmit(localValues);
+  };
+
+  return (
+    <div style={{
+      backgroundColor: 'white',
+      borderRadius: '16px',
+      padding: '20px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+      border: `2px solid ${section.color}30`
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '12px', borderBottom: `2px solid ${section.color}20` }}>
+        <span style={{ fontSize: '24px' }}>{section.icon}</span>
+        <h3 style={{ margin: 0, fontSize: '17px', fontWeight: '600', color: section.color }}>{section.title}</h3>
+      </div>
+
+      {section.questions.map(q => (
+        <RatingSlider
+          key={q.key}
+          question={q}
+          value={localValues[q.key]}
+          onChange={(val) => handleSliderChange(q.key, val)}
+        />
+      ))}
+
+      <button
+        onClick={handleSubmit}
+        style={{
+          width: '100%',
+          padding: '14px',
+          marginTop: '8px',
+          borderRadius: '12px',
+          border: 'none',
+          backgroundColor: section.color,
+          color: 'white',
+          fontSize: '15px',
+          fontWeight: '600',
+          cursor: 'pointer'
+        }}
+      >
+        Continue →
+      </button>
+    </div>
+  );
 };
 
 function FeedbackChatV2() {
   const [currentStep, setCurrentStep] = useState(STEPS.LANGUAGE);
-  const [messages, setMessages] = useState([{ type: 'bot', text: "Hi! 👋 Please choose your language." }]);
+  const [messages, setMessages] = useState([{ type: 'bot', text: "Hi 👋 Choose your language." }]);
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState({});
   const [sectionAnswers, setSectionAnswers] = useState({});
   const [inputValue, setInputValue] = useState('');
+  const [showOtherLangs, setShowOtherLangs] = useState(false);
+  const [customLangMode, setCustomLangMode] = useState(false);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, currentStep]);
 
-  // Call Claude API
+  // Call Claude
   const callClaude = async (prompt) => {
     const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
     try {
@@ -420,7 +467,7 @@ function FeedbackChatV2() {
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 256,
+          max_tokens: 150,
           messages: [{ role: 'user', content: prompt }]
         })
       });
@@ -433,7 +480,6 @@ function FeedbackChatV2() {
     }
   };
 
-  // Translate comment to English
   const translateToEnglish = async (comment, language) => {
     if (!comment || language === 'English') return comment;
     const prompt = getTranslationPrompt(comment, language);
@@ -441,123 +487,95 @@ function FeedbackChatV2() {
     return translated || comment;
   };
 
-  // Get Claude response for a step
   const getClaudeResponse = async (step, context = {}) => {
     const prompt = getClaudePrompt(step, data.language || 'English', context);
     const response = await callClaude(prompt);
     return response || getFallbackMessage(step);
   };
 
-  // Fallback messages if Claude fails
   const getFallbackMessage = (step) => {
     const fallbacks = {
-      welcome: "Which campus do you study at?",
-      campus_selected: "Great! Who is your teacher?",
-      teacher_selected: "How long have you been studying with us?",
-      duration_selected: "Now some questions about your classroom.",
-      env_done: "Thanks! Anything to add?",
-      env_comment_done: "Now about your learning experience.",
-      exp_done: "Thanks! Anything to add?",
+      welcome: "Which campus - Dubai or London?",
+      campus_selected: "Got it. Who is your teacher?",
+      teacher_selected: "How long have you been studying?",
+      duration_selected: "Now some questions about the classroom.",
+      env_done: "Thanks. Anything to add?",
+      env_comment_done: "Now about your classes.",
+      exp_done: "Thanks. Anything to add?",
       exp_comment_done: "Now about the teaching.",
-      teach_done: "Thanks! Anything to add?",
-      teach_comment_done: "Now about help and support.",
-      support_done: "Thanks! Anything to add?",
-      support_comment_done: "Last section - class management.",
-      mgmt_done: "Thanks! Anything to add?",
-      mgmt_comment_done: "Any other comments?",
-      final_done: "Thank you for your feedback! It helps us a lot."
+      teach_done: "Thanks. Anything to add?",
+      teach_comment_done: "Now about support.",
+      support_done: "Thanks. Anything to add?",
+      support_comment_done: "Last section.",
+      mgmt_done: "Thanks. Anything to add?",
+      mgmt_comment_done: "Any other feedback?",
+      final_done: "Thank you. This helps us improve."
     };
-    return fallbacks[step] || "Thank you!";
+    return fallbacks[step] || "Thank you.";
   };
 
-  // Move to next step
   const goToNextStep = () => {
-    const currentIndex = STEP_ORDER.indexOf(currentStep);
-    if (currentIndex < STEP_ORDER.length - 1) {
-      setCurrentStep(STEP_ORDER[currentIndex + 1]);
-    }
+    const idx = STEP_ORDER.indexOf(currentStep);
+    if (idx < STEP_ORDER.length - 1) setCurrentStep(STEP_ORDER[idx + 1]);
   };
 
-  // Handle language selection
+  // Handlers
   const handleLanguageSelect = async (language) => {
     setData({ language });
     setIsLoading(true);
-    
     const response = await getClaudeResponse('welcome', {});
     setMessages(prev => [...prev, { type: 'bot', text: response }]);
-    
     setIsLoading(false);
     setCurrentStep(STEPS.CAMPUS);
   };
 
-  // Handle campus selection
   const handleCampusSelect = async (campus) => {
     setData(prev => ({ ...prev, campus }));
     setIsLoading(true);
-    
     const response = await getClaudeResponse('campus_selected', { campus });
     setMessages(prev => [...prev, { type: 'bot', text: response }]);
-    
     setIsLoading(false);
     setCurrentStep(STEPS.TEACHER);
   };
 
-  // Handle teacher selection
   const handleTeacherSelect = async (teacher) => {
     setData(prev => ({ ...prev, teacher_name: teacher }));
     setIsLoading(true);
-    
     const response = await getClaudeResponse('teacher_selected', { teacher });
     setMessages(prev => [...prev, { type: 'bot', text: response }]);
-    
     setIsLoading(false);
     setCurrentStep(STEPS.DURATION);
   };
 
-  // Handle duration selection
   const handleDurationSelect = async (duration) => {
     setData(prev => ({ ...prev, duration }));
     setIsLoading(true);
-    
     const response = await getClaudeResponse('duration_selected', { duration });
     setMessages(prev => [...prev, { type: 'bot', text: response }]);
-    
     setIsLoading(false);
     setCurrentStep(STEPS.ENV_SECTION);
   };
 
-  // Handle section submit
-  const handleSectionSubmit = async (sectionKey) => {
-    const sectionData = { ...sectionAnswers };
-    setData(prev => ({ ...prev, ...sectionData }));
+  const handleSectionSubmit = async (sectionKey, values) => {
+    setData(prev => ({ ...prev, ...values }));
     setSectionAnswers({});
     setIsLoading(true);
-
-    const promptKey = `${sectionKey}_done`;
-    const response = await getClaudeResponse(promptKey, sectionData);
+    const response = await getClaudeResponse(`${sectionKey}_done`, values);
     setMessages(prev => [...prev, { type: 'bot', text: response }]);
-
     setIsLoading(false);
     goToNextStep();
   };
 
-  // Handle comment submit
   const handleCommentSubmit = async (commentKey, comment) => {
     setIsLoading(true);
-    
-    // Translate if needed
-    const translatedComment = await translateToEnglish(comment, data.language);
-    setData(prev => ({ ...prev, [commentKey]: translatedComment }));
-
-    const promptKey = `${commentKey}_done`;
-    const response = await getClaudeResponse(promptKey, { comment });
+    const translated = await translateToEnglish(comment, data.language);
+    setData(prev => ({ ...prev, [commentKey]: translated }));
+    const response = await getClaudeResponse(`${commentKey}_done`, { comment });
     setMessages(prev => [...prev, { type: 'bot', text: response }]);
-
     setIsLoading(false);
-    
-    // If final comment, save and complete
+
     if (commentKey === 'final_comment') {
-      const finalData = { ...data, [commentKey]: translatedComment };
+      const finalData = { ...data, [commentKey]: translated };
       await saveToGoogleSheet(finalData);
       setCurrentStep(STEPS.COMPLETE);
     } else {
@@ -565,10 +583,7 @@ function FeedbackChatV2() {
     }
   };
 
-  // Handle skip (no comment)
-  const handleSkip = async (commentKey) => {
-    await handleCommentSubmit(commentKey, '');
-  };
+  const handleSkip = (commentKey) => handleCommentSubmit(commentKey, '');
 
   // Get current section
   const getCurrentSection = () => {
@@ -582,7 +597,6 @@ function FeedbackChatV2() {
     }
   };
 
-  // Get current comment key
   const getCommentKey = () => {
     switch (currentStep) {
       case STEPS.ENV_COMMENT: return 'env_comment';
@@ -597,7 +611,6 @@ function FeedbackChatV2() {
 
   const currentSection = getCurrentSection();
   const commentKey = getCommentKey();
-  const allAnswered = currentSection?.questions.every(q => sectionAnswers[q.key] !== undefined);
 
   // Styles
   const styles = {
@@ -648,115 +661,96 @@ function FeedbackChatV2() {
       lineHeight: '1.4',
       boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
     },
-    sectionCard: {
-      backgroundColor: 'white',
-      borderRadius: '16px',
-      padding: '20px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-    },
-    sectionTitle: {
-      fontSize: '17px',
-      fontWeight: '600',
-      color: '#1f2937',
-      marginBottom: '16px'
-    },
-    questionBlock: {
-      marginBottom: '20px'
-    },
-    questionText: {
-      fontSize: '14px',
-      fontWeight: '500',
-      color: '#374151',
-      marginBottom: '10px'
-    },
-    optionsGrid: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: '8px'
-    },
-    optionButton: (isSelected) => ({
-      padding: '10px 12px',
-      borderRadius: '10px',
-      border: '2px solid',
-      borderColor: isSelected ? '#f97316' : '#e5e7eb',
-      backgroundColor: isSelected ? '#fff7ed' : 'white',
-      color: isSelected ? '#ea580c' : '#374151',
-      fontSize: '13px',
-      fontWeight: isSelected ? '600' : '400',
-      cursor: 'pointer',
-      transition: 'all 0.15s'
-    }),
-    submitButton: (enabled) => ({
-      width: '100%',
-      marginTop: '8px',
-      padding: '14px',
-      borderRadius: '12px',
-      border: 'none',
-      backgroundColor: enabled ? '#f97316' : '#e5e7eb',
-      color: enabled ? 'white' : '#9ca3af',
-      fontSize: '15px',
-      fontWeight: '600',
-      cursor: enabled ? 'pointer' : 'default'
-    }),
     inputArea: {
       padding: '16px',
       backgroundColor: 'white',
       borderTop: '1px solid #e5e7eb'
     },
-    languageGrid: {
+    langGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, 1fr)',
+      gap: '10px'
+    },
+    langButton: {
+      padding: '14px 12px',
+      borderRadius: '12px',
+      border: '2px solid #e5e7eb',
+      backgroundColor: 'white',
+      fontSize: '15px',
+      cursor: 'pointer',
+      transition: 'all 0.15s'
+    },
+    otherLangGrid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
-      gap: '8px'
+      gap: '8px',
+      marginTop: '10px'
     },
-    languageButton: {
-      padding: '10px 8px',
+    otherLangBtn: {
+      padding: '10px 6px',
       borderRadius: '10px',
       border: '1px solid #e5e7eb',
-      backgroundColor: 'white',
-      fontSize: '14px',
-      cursor: 'pointer',
-      transition: 'all 0.15s'
+      backgroundColor: '#f9fafb',
+      fontSize: '13px',
+      cursor: 'pointer'
     },
-    buttonGrid: (columns) => ({
+    linkButton: {
+      width: '100%',
+      padding: '10px',
+      marginTop: '8px',
+      backgroundColor: 'transparent',
+      border: 'none',
+      color: '#6b7280',
+      fontSize: '14px',
+      cursor: 'pointer'
+    },
+    campusGrid: {
       display: 'grid',
-      gridTemplateColumns: `repeat(${columns}, 1fr)`,
-      gap: '8px'
-    }),
+      gridTemplateColumns: '1fr 1fr',
+      gap: '10px'
+    },
     selectButton: {
-      padding: '12px 16px',
-      borderRadius: '10px',
-      border: '1px solid #e5e7eb',
+      padding: '14px 16px',
+      borderRadius: '12px',
+      border: '2px solid #e5e7eb',
       backgroundColor: 'white',
-      fontSize: '14px',
+      fontSize: '15px',
       cursor: 'pointer',
       transition: 'all 0.15s'
+    },
+    dropdown: {
+      width: '100%',
+      padding: '14px 16px',
+      borderRadius: '12px',
+      border: '2px solid #e5e7eb',
+      backgroundColor: 'white',
+      fontSize: '15px',
+      cursor: 'pointer'
     },
     textInput: {
       width: '100%',
-      padding: '12px 16px',
+      padding: '14px 16px',
       borderRadius: '12px',
-      border: '1px solid #e5e7eb',
+      border: '2px solid #e5e7eb',
       fontSize: '15px',
-      marginBottom: '8px',
+      marginBottom: '10px',
       outline: 'none'
     },
-    row: {
-      display: 'flex',
-      gap: '8px'
-    },
     sendButton: {
-      padding: '12px 20px',
+      width: '100%',
+      padding: '14px',
       borderRadius: '12px',
       border: 'none',
       backgroundColor: '#f97316',
       color: 'white',
-      fontSize: '14px',
-      fontWeight: '500',
+      fontSize: '15px',
+      fontWeight: '600',
       cursor: 'pointer'
     },
     skipButton: {
       width: '100%',
       padding: '10px',
+      marginTop: '8px',
       backgroundColor: 'transparent',
       border: 'none',
       color: '#6b7280',
@@ -769,14 +763,8 @@ function FeedbackChatV2() {
       padding: '12px 16px',
       backgroundColor: 'white',
       borderRadius: '18px 18px 18px 4px',
-      width: 'fit-content'
-    },
-    dot: {
-      width: '8px',
-      height: '8px',
-      borderRadius: '50%',
-      backgroundColor: '#9ca3af',
-      animation: 'bounce 1.4s infinite ease-in-out'
+      width: 'fit-content',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
     },
     complete: {
       textAlign: 'center',
@@ -814,42 +802,22 @@ function FeedbackChatV2() {
           </div>
         ))}
 
-        {/* Section Card */}
+        {/* Section Card with Sliders */}
         {currentSection && (
-          <div style={styles.sectionCard}>
-            <h3 style={styles.sectionTitle}>{currentSection.title}</h3>
-            {currentSection.questions.map(q => (
-              <div key={q.key} style={styles.questionBlock}>
-                <p style={styles.questionText}>{q.question}</p>
-                <div style={styles.optionsGrid}>
-                  {q.options.map((opt, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSectionAnswers(prev => ({ ...prev, [q.key]: opt.value }))}
-                      style={styles.optionButton(sectionAnswers[q.key] === opt.value)}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <button
-              onClick={() => handleSectionSubmit(currentSection.key)}
-              disabled={!allAnswered}
-              style={styles.submitButton(allAnswered)}
-            >
-              {allAnswered ? 'Continue →' : 'Answer all questions'}
-            </button>
-          </div>
+          <SectionCard
+            section={currentSection}
+            values={sectionAnswers}
+            onChange={setSectionAnswers}
+            onSubmit={(values) => handleSectionSubmit(currentSection.key, values)}
+          />
         )}
 
         {/* Loading */}
         {isLoading && (
           <div style={styles.typingDots}>
-            <span style={{ ...styles.dot, animationDelay: '0ms' }} />
-            <span style={{ ...styles.dot, animationDelay: '150ms' }} />
-            <span style={{ ...styles.dot, animationDelay: '300ms' }} />
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#9ca3af', animation: 'bounce 1.4s infinite ease-in-out' }} />
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#9ca3af', animation: 'bounce 1.4s infinite ease-in-out', animationDelay: '0.15s' }} />
+            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#9ca3af', animation: 'bounce 1.4s infinite ease-in-out', animationDelay: '0.3s' }} />
           </div>
         )}
 
@@ -858,33 +826,87 @@ function FeedbackChatV2() {
 
       {/* Input Area */}
       <div style={styles.inputArea}>
-        {/* Language Selection */}
+        {/* Language Selection - 6 primary + Other */}
         {currentStep === STEPS.LANGUAGE && (
-          <div style={styles.languageGrid}>
-            {LANGUAGES.map((lang, i) => (
-              <button
-                key={i}
-                onClick={() => handleLanguageSelect(lang.value)}
-                style={styles.languageButton}
-                onMouseEnter={e => { e.target.style.backgroundColor = '#f97316'; e.target.style.color = 'white'; }}
-                onMouseLeave={e => { e.target.style.backgroundColor = 'white'; e.target.style.color = 'black'; }}
-              >
-                {lang.label}
+          <>
+            <div style={styles.langGrid}>
+              {PRIMARY_LANGUAGES.map((lang, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleLanguageSelect(lang.value)}
+                  style={styles.langButton}
+                  onMouseEnter={e => { e.target.style.borderColor = '#f97316'; e.target.style.backgroundColor = '#fff7ed'; }}
+                  onMouseLeave={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.backgroundColor = 'white'; }}
+                >
+                  {lang.label}
+                </button>
+              ))}
+            </div>
+
+            {!showOtherLangs && !customLangMode && (
+              <button onClick={() => setShowOtherLangs(true)} style={styles.linkButton}>
+                Other language...
               </button>
-            ))}
-          </div>
+            )}
+
+            {showOtherLangs && !customLangMode && (
+              <>
+                <div style={styles.otherLangGrid}>
+                  {OTHER_LANGUAGES.map((lang, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleLanguageSelect(lang.value)}
+                      style={styles.otherLangBtn}
+                      onMouseEnter={e => { e.target.style.borderColor = '#f97316'; }}
+                      onMouseLeave={e => { e.target.style.borderColor = '#e5e7eb'; }}
+                    >
+                      {lang.label}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => setCustomLangMode(true)} style={styles.linkButton}>
+                  Type another language...
+                </button>
+              </>
+            )}
+
+            {customLangMode && (
+              <div style={{ marginTop: '10px' }}>
+                <input
+                  type="text"
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  placeholder="Type your language..."
+                  style={styles.textInput}
+                  autoFocus
+                />
+                <button
+                  onClick={() => {
+                    if (inputValue.trim()) {
+                      handleLanguageSelect(inputValue.trim());
+                      setInputValue('');
+                    }
+                  }}
+                  style={{ ...styles.sendButton, opacity: inputValue.trim() ? 1 : 0.5 }}
+                  disabled={!inputValue.trim()}
+                >
+                  Continue
+                </button>
+              </div>
+            )}
+          </>
         )}
 
-        {/* Campus Selection */}
+        {/* Campus */}
         {currentStep === STEPS.CAMPUS && !isLoading && (
-          <div style={styles.buttonGrid(2)}>
+          <div style={styles.campusGrid}>
             {CAMPUS_OPTIONS.map((opt, i) => (
               <button
                 key={i}
                 onClick={() => handleCampusSelect(opt.value)}
                 style={styles.selectButton}
-                onMouseEnter={e => { e.target.style.backgroundColor = '#f97316'; e.target.style.color = 'white'; }}
-                onMouseLeave={e => { e.target.style.backgroundColor = 'white'; e.target.style.color = 'black'; }}
+                onMouseEnter={e => { e.target.style.borderColor = '#f97316'; e.target.style.backgroundColor = '#fff7ed'; }}
+                onMouseLeave={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.backgroundColor = 'white'; }}
               >
                 {opt.label}
               </button>
@@ -892,33 +914,30 @@ function FeedbackChatV2() {
           </div>
         )}
 
-        {/* Teacher Selection */}
+        {/* Teacher - Dropdown */}
         {currentStep === STEPS.TEACHER && !isLoading && (
-          <div style={styles.buttonGrid(2)}>
-            {TEACHER_OPTIONS.map((opt, i) => (
-              <button
-                key={i}
-                onClick={() => handleTeacherSelect(opt.value)}
-                style={styles.selectButton}
-                onMouseEnter={e => { e.target.style.backgroundColor = '#f97316'; e.target.style.color = 'white'; }}
-                onMouseLeave={e => { e.target.style.backgroundColor = 'white'; e.target.style.color = 'black'; }}
-              >
-                {opt.label}
-              </button>
+          <select
+            onChange={(e) => { if (e.target.value) handleTeacherSelect(e.target.value); }}
+            defaultValue=""
+            style={styles.dropdown}
+          >
+            <option value="" disabled>Select your teacher...</option>
+            {TEACHER_OPTIONS.map((t, i) => (
+              <option key={i} value={t}>{t}</option>
             ))}
-          </div>
+          </select>
         )}
 
-        {/* Duration Selection */}
+        {/* Duration */}
         {currentStep === STEPS.DURATION && !isLoading && (
-          <div style={styles.buttonGrid(2)}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             {DURATION_OPTIONS.map((opt, i) => (
               <button
                 key={i}
                 onClick={() => handleDurationSelect(opt.value)}
                 style={styles.selectButton}
-                onMouseEnter={e => { e.target.style.backgroundColor = '#f97316'; e.target.style.color = 'white'; }}
-                onMouseLeave={e => { e.target.style.backgroundColor = 'white'; e.target.style.color = 'black'; }}
+                onMouseEnter={e => { e.target.style.borderColor = '#f97316'; e.target.style.backgroundColor = '#fff7ed'; }}
+                onMouseLeave={e => { e.target.style.borderColor = '#e5e7eb'; e.target.style.backgroundColor = 'white'; }}
               >
                 {opt.label}
               </button>
@@ -942,24 +961,19 @@ function FeedbackChatV2() {
               placeholder="Type your comment..."
               style={styles.textInput}
             />
-            <div style={styles.row}>
-              <button
-                onClick={() => {
-                  if (inputValue.trim()) {
-                    handleCommentSubmit(commentKey, inputValue.trim());
-                    setInputValue('');
-                  }
-                }}
-                style={{ ...styles.sendButton, flex: 1, opacity: inputValue.trim() ? 1 : 0.5 }}
-                disabled={!inputValue.trim()}
-              >
-                Send
-              </button>
-            </div>
             <button
-              onClick={() => handleSkip(commentKey)}
-              style={styles.skipButton}
+              onClick={() => {
+                if (inputValue.trim()) {
+                  handleCommentSubmit(commentKey, inputValue.trim());
+                  setInputValue('');
+                }
+              }}
+              style={{ ...styles.sendButton, opacity: inputValue.trim() ? 1 : 0.5 }}
+              disabled={!inputValue.trim()}
             >
+              Send
+            </button>
+            <button onClick={() => handleSkip(commentKey)} style={styles.skipButton}>
               Nothing to add →
             </button>
           </>
@@ -967,9 +981,7 @@ function FeedbackChatV2() {
 
         {/* Complete */}
         {currentStep === STEPS.COMPLETE && (
-          <div style={styles.complete}>
-            ✓ Feedback submitted
-          </div>
+          <div style={styles.complete}>✓ Feedback submitted</div>
         )}
       </div>
     </div>
