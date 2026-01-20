@@ -296,23 +296,22 @@ const HARDCODED_SECTIONS = {
 
 const LANGUAGES = [
   { label: 'English', value: 'English' },
-  { label: 'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©', value: 'Arabic' },
-  { label: 'EspaÃ±ol', value: 'Spanish' },
-  { label: 'ä¸­æ–‡', value: 'Chinese' },
-  { label: 'PortuguÃªs', value: 'Portuguese' },
-  { label: 'TÃ¼rkÃ§e', value: 'Turkish' },
-  { label: 'Ð ÑƒÑÑÐºÐ¸Ð¹', value: 'Russian' },
-  { label: 'à¹„à¸—à¸¢', value: 'Thai' },
-  { label: 'ÙØ§Ø±Ø³ÛŒ', value: 'Farsi' },
-  { label: 'í•œêµ­ì–´', value: 'Korean' },
-  { label: 'æ—¥æœ¬èªž', value: 'Japanese' },
-  { label: 'Tiáº¿ng Viá»‡t', value: 'Vietnamese' },
-  { label: 'FranÃ§ais', value: 'French' },
+  { label: 'العربية', value: 'Arabic' },
+  { label: 'Español', value: 'Spanish' },
+  { label: '中文', value: 'Chinese' },
+  { label: 'Português', value: 'Portuguese' },
+  { label: 'Türkçe', value: 'Turkish' },
+  { label: 'Русский', value: 'Russian' },
+  { label: 'ไทย', value: 'Thai' },
+  { label: 'فارسی', value: 'Farsi' },
+  { label: '한국어', value: 'Korean' },
+  { label: '日本語', value: 'Japanese' },
+  { label: 'Tiếng Việt', value: 'Vietnamese' },
+  { label: 'Français', value: 'French' },
   { label: 'Deutsch', value: 'German' },
   { label: 'Italiano', value: 'Italian' },
   { label: 'Other...', value: 'OTHER' }
 ];
-
 const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
 
 const generateResponseId = () => 'FB' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 4).toUpperCase();
@@ -458,7 +457,7 @@ function FeedbackChatV2() {
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-20250514',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 2048,
         system: SYSTEM_PROMPT,
         messages: conversationHistory
