@@ -275,7 +275,17 @@ ${JSON.stringify(ratingOptions)}`;
     try {
       const result = await callClaude(
         context,
-        `You are a friendly feedback assistant for ES World language school. Respond in ${language}. Keep responses SHORT (1 sentence max). Be warm but brief. Use simple language (B1 level). Never be overly enthusiastic.`
+        `You are a friendly feedback assistant for ES World language school (Dubai & London campuses). 
+
+CRITICAL RULES:
+- Respond in ${language}
+- Keep responses to 1 SHORT sentence (max 10 words)
+- Be warm but brief
+- Use simple language (B1 level)
+- NEVER mention stars, scales, numbers, or ratings - the UI handles that
+- NEVER say "today" - this is feedback about their overall experience
+- Just introduce each section naturally, don't explain how to rate
+- Examples: "How's the classroom?" or "Let's talk about your lessons" or "What about your teacher?"`
       );
       return result;
     } catch (error) {
@@ -354,7 +364,7 @@ ${JSON.stringify(ratingOptions)}`;
     const newData = { ...feedbackData, duration };
     setFeedbackData(newData);
     
-    const response = await generateBotResponse(`User has been studying for ${duration}. Now ask them to rate the classroom environment.`, feedbackData.language);
+    const response = await generateBotResponse(`User has been studying for ${duration}. Introduce the Environment section - ask about the classroom.`, feedbackData.language);
     addBotMessage(response);
     setCurrentStep('env');
     setCurrentRatings({});
@@ -393,7 +403,7 @@ ${JSON.stringify(ratingOptions)}`;
     setFeedbackData(newData);
     
     const response = await generateBotResponse(
-      `User completed ${RATING_SECTIONS[section].title} ratings. Ask if they want to add any comments about this.`,
+      `User finished ${RATING_SECTIONS[section].title} section. Ask if they want to add any comments.`,
       feedbackData.language
     );
     addBotMessage(response);
@@ -415,15 +425,21 @@ ${JSON.stringify(ratingOptions)}`;
     
     if (currentIndex < sectionKeys.length - 1) {
       const nextSection = sectionKeys[currentIndex + 1];
+      const sectionIntros = {
+        exp: "Now let's talk about your learning experience.",
+        teach: "Now about your teacher.",
+        support: "How about the support you receive?",
+        mgmt: "Finally, a few questions about class management."
+      };
       const response = await generateBotResponse(
-        `User ${hasComment ? 'added a comment' : 'skipped commenting'}. Now ask them to rate ${RATING_SECTIONS[nextSection].title}.`,
+        `Introduce the ${RATING_SECTIONS[nextSection].title} section briefly.`,
         feedbackData.language
       );
       addBotMessage(response);
       setCurrentStep(nextSection);
     } else {
       const response = await generateBotResponse(
-        `User finished all ratings. Ask if they have any final feedback.`,
+        `User finished all sections. Ask if they have any other feedback to share.`,
         feedbackData.language
       );
       addBotMessage(response);
