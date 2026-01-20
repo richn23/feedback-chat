@@ -61,7 +61,9 @@ const RATING_SECTIONS = {
 const STEPS = ['language', 'campus', 'teacher', 'duration', 'env', 'env_comment', 'exp', 'exp_comment', 'teach', 'teach_comment', 'support', 'support_comment', 'mgmt', 'mgmt_comment', 'final', 'complete'];
 
 export default function FeedbackChatV2() {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([
+    { role: 'bot', text: "Welcome to ES World! Please choose your language. 🌍" }
+  ]);
   const [currentStep, setCurrentStep] = useState('language');
   const [loading, setLoading] = useState(false);
   const [feedbackData, setFeedbackData] = useState({
@@ -86,11 +88,6 @@ export default function FeedbackChatV2() {
   
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-
-  useEffect(() => {
-    // Initial greeting
-    addBotMessage("Welcome to ES World! Please choose your language. 🌍");
-  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -130,77 +127,147 @@ export default function FeedbackChatV2() {
     return data.content[0].text;
   };
 
-  const translateUI = async (language, retryCount = 0) => {
+  const translateUI = async (language) => {
     setLoading(true);
     try {
-      const uiElements = {
-        campusQuestion: "Which campus do you study at?",
+      // Part 1: Basic UI strings (small, reliable)
+      const basicUI = {
         dubai: "Dubai",
         london: "London",
-        teacherQuestion: "Who is your teacher?",
         selectTeacher: "Select your teacher",
-        durationQuestion: "How long have you been studying with us?",
-        durations: DURATION_OPTIONS,
-        ratingInstructions: "Please rate each aspect:",
-        commentPrompt: "Would you like to add anything about this?",
+        durations: ["1-2 weeks", "3-4 weeks", "1-2 months", "2+ months"],
         nothingToAdd: "Nothing to add",
         submit: "Submit",
-        finalQuestion: "Any other feedback you'd like to share?",
-        thankYou: "Thank you for your feedback! Your responses have been saved.",
-        feedbackSent: "Feedback sent",
-        translationFailed: "Could not translate. Continuing in English.",
-        sections: {}
+        thankYou: "Thank you for your feedback!",
+        env: "Environment",
+        exp: "Experience", 
+        teach: "Teaching",
+        support: "Support",
+        mgmt: "Management",
+        labels: {
+          classroom: "Classroom comfort",
+          facilities: "Facilities quality",
+          location: "Location convenience",
+          schedule: "Schedule suitability",
+          activities: "Class activities",
+          homework: "Homework usefulness",
+          materials: "Learning materials",
+          progress: "Your progress",
+          explanations: "Clear explanations",
+          preparation: "Lesson preparation",
+          methods: "Teaching methods",
+          speaking: "Speaking practice",
+          help: "Help availability",
+          feedback: "Feedback quality",
+          encouragement: "Encouragement",
+          atmosphere: "Class atmosphere",
+          timing: "Class timing",
+          fairness: "Fairness to all",
+          organization: "Organization",
+          rules: "Clear rules"
+        }
       };
 
-      // Add rating sections
-      for (const [key, section] of Object.entries(RATING_SECTIONS)) {
-        uiElements.sections[key] = {
-          title: section.title,
-          questions: section.questions.map(q => ({
-            label: q.en,
-            options: q.options
-          }))
-        };
-      }
+      const prompt1 = `Translate to ${language} (B1 level). Return ONLY JSON, no markdown:
+${JSON.stringify(basicUI)}`;
 
-      const prompt = `Translate this UI to ${language}. Keep it simple (B1 level). Return ONLY valid JSON, no markdown, no explanation, no code blocks:
-${JSON.stringify(uiElements)}`;
+      const result1 = await callClaude(prompt1, `Translator. Return raw JSON only.`);
+      const clean1 = extractJSON(result1);
+      const translated1 = JSON.parse(clean1);
 
-      const result = await callClaude(prompt, `You are a translator. Translate to ${language}. Return ONLY the raw JSON object. No markdown code blocks, no backticks, no explanation.`);
-      
-      // Clean the response - remove any markdown, whitespace, or extra text
-      let cleanResult = result.trim();
-      
-      // Remove markdown code blocks if present
-      if (cleanResult.startsWith('```')) {
-        cleanResult = cleanResult.replace(/```json?\n?/g, '').replace(/```\n?$/g, '').trim();
-      }
-      
-      // Find the JSON object - look for first { and last }
-      const firstBrace = cleanResult.indexOf('{');
-      const lastBrace = cleanResult.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        cleanResult = cleanResult.slice(firstBrace, lastBrace + 1);
-      }
-      
-      const translated = JSON.parse(cleanResult);
-      setTranslatedUI(translated);
-      return translated;
+      // Part 2: Rating options (separate call for reliability)
+      const ratingOptions = {
+        classroom: ["Very comfortable", "Comfortable enough", "Sometimes uncomfortable", "Often uncomfortable"],
+        facilities: ["Excellent", "Good", "Adequate", "Poor"],
+        location: ["Very convenient", "Convenient enough", "Somewhat inconvenient", "Very inconvenient"],
+        schedule: ["Works perfectly", "Works well", "Some issues", "Doesn't work"],
+        activities: ["Very engaging", "Engaging enough", "Sometimes boring", "Often boring"],
+        homework: ["Very useful", "Useful enough", "Sometimes useful", "Not useful"],
+        materials: ["Excellent", "Good", "Adequate", "Poor"],
+        progress: ["Great progress", "Good progress", "Some progress", "Little progress"],
+        explanations: ["Always clear", "Usually clear", "Sometimes unclear", "Often unclear"],
+        preparation: ["Always prepared", "Usually prepared", "Sometimes unprepared", "Often unprepared"],
+        methods: ["Very effective", "Effective enough", "Sometimes ineffective", "Often ineffective"],
+        speaking: ["Plenty of practice", "Enough practice", "Need more practice", "Very little practice"],
+        help: ["Always available", "Usually available", "Sometimes available", "Rarely available"],
+        feedback: ["Very helpful", "Helpful enough", "Sometimes helpful", "Not helpful"],
+        encouragement: ["Very encouraging", "Encouraging enough", "Sometimes encouraging", "Not encouraging"],
+        atmosphere: ["Very welcoming", "Welcoming enough", "Sometimes unwelcoming", "Often unwelcoming"],
+        timing: ["Always on time", "Usually on time", "Sometimes late", "Often late"],
+        fairness: ["Very fair", "Fair enough", "Sometimes unfair", "Often unfair"],
+        organization: ["Very organized", "Organized enough", "Sometimes disorganized", "Often disorganized"],
+        rules: ["Very clear", "Clear enough", "Sometimes unclear", "Often unclear"]
+      };
+
+      const prompt2 = `Translate to ${language} (B1 level). Return ONLY JSON, no markdown:
+${JSON.stringify(ratingOptions)}`;
+
+      const result2 = await callClaude(prompt2, `Translator. Return raw JSON only.`);
+      const clean2 = extractJSON(result2);
+      const translated2 = JSON.parse(clean2);
+
+      // Get labels (with fallbacks)
+      const labels = translated1.labels || {};
+
+      // Combine into expected structure
+      const combined = {
+        ...translated1,
+        sections: {
+          env: { title: translated1.env, questions: [
+            { label: labels.classroom || "Classroom comfort", options: translated2.classroom },
+            { label: labels.facilities || "Facilities quality", options: translated2.facilities },
+            { label: labels.location || "Location convenience", options: translated2.location },
+            { label: labels.schedule || "Schedule suitability", options: translated2.schedule }
+          ]},
+          exp: { title: translated1.exp, questions: [
+            { label: labels.activities || "Class activities", options: translated2.activities },
+            { label: labels.homework || "Homework usefulness", options: translated2.homework },
+            { label: labels.materials || "Learning materials", options: translated2.materials },
+            { label: labels.progress || "Your progress", options: translated2.progress }
+          ]},
+          teach: { title: translated1.teach, questions: [
+            { label: labels.explanations || "Clear explanations", options: translated2.explanations },
+            { label: labels.preparation || "Lesson preparation", options: translated2.preparation },
+            { label: labels.methods || "Teaching methods", options: translated2.methods },
+            { label: labels.speaking || "Speaking practice", options: translated2.speaking }
+          ]},
+          support: { title: translated1.support, questions: [
+            { label: labels.help || "Help availability", options: translated2.help },
+            { label: labels.feedback || "Feedback quality", options: translated2.feedback },
+            { label: labels.encouragement || "Encouragement", options: translated2.encouragement },
+            { label: labels.atmosphere || "Class atmosphere", options: translated2.atmosphere }
+          ]},
+          mgmt: { title: translated1.mgmt, questions: [
+            { label: labels.timing || "Class timing", options: translated2.timing },
+            { label: labels.fairness || "Fairness to all", options: translated2.fairness },
+            { label: labels.organization || "Organization", options: translated2.organization },
+            { label: labels.rules || "Clear rules", options: translated2.rules }
+          ]}
+        }
+      };
+
+      setTranslatedUI(combined);
+      return combined;
     } catch (error) {
       console.error('Translation error:', error);
-      
-      // Retry once if first attempt failed
-      if (retryCount < 1) {
-        console.log('Retrying translation...');
-        return translateUI(language, retryCount + 1);
-      }
-      
-      // Show user-friendly message on failure
-      addBotMessage("⚠️ Could not translate. Continuing in English.");
+      addBotMessage("⚠️ Could not translate UI. Continuing in English.");
       return null;
     } finally {
       setLoading(false);
     }
+  };
+
+  const extractJSON = (text) => {
+    let clean = text.trim();
+    if (clean.startsWith('```')) {
+      clean = clean.replace(/```json?\n?/g, '').replace(/```\n?$/g, '').trim();
+    }
+    const first = clean.indexOf('{');
+    const last = clean.lastIndexOf('}');
+    if (first !== -1 && last > first) {
+      return clean.slice(first, last + 1);
+    }
+    return clean;
   };
 
   const generateBotResponse = async (context, language) => {
@@ -529,6 +596,14 @@ ${JSON.stringify(uiElements)}`;
         onChange={(e) => handleTeacherSelect(e.target.value)}
         disabled={loading}
         defaultValue=""
+        onFocus={(e) => {
+          e.target.style.borderColor = '#f97316';
+          e.target.style.boxShadow = '0 0 0 3px rgba(249, 115, 22, 0.15)';
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = '#e5e7eb';
+          e.target.style.boxShadow = 'none';
+        }}
         style={{
           ...styles.dropdown,
           ...(loading ? styles.disabledButton : {})
@@ -560,6 +635,9 @@ ${JSON.stringify(uiElements)}`;
     </div>
   );
 
+  const EMOJIS = ['😟', '😕', '🙂', '😊'];
+  const GRADIENT_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e']; // red, orange, yellow, green
+
   const renderRatingCard = (sectionKey) => {
     const section = RATING_SECTIONS[sectionKey];
     const translated = translatedUI?.sections?.[sectionKey];
@@ -571,30 +649,105 @@ ${JSON.stringify(uiElements)}`;
         </div>
         {section.questions.map((q, qIdx) => {
           const translatedQ = translated?.questions?.[qIdx];
+          const options = translatedQ?.options || q.options;
+          // Reverse options so best is on right: index 0=worst(left), 3=best(right)
+          const reversedOptions = [...options].reverse();
+          const selectedValue = currentRatings[q.key]; // 0=worst, 3=best
+          
+          // Position percentages for 4 stops: 0%, 33%, 67%, 100%
+          const positions = [0, 33.33, 66.67, 100];
+          
           return (
-            <div key={q.key} style={styles.ratingQuestion}>
+            <div key={q.key} style={{ marginBottom: '24px' }}>
               <div style={styles.ratingLabel}>
                 {translatedQ?.label || q.en}
               </div>
-              <div style={styles.ratingOptions}>
-                {(translatedQ?.options || q.options).map((option, optIdx) => {
-                  const value = 3 - optIdx; // 3, 2, 1, 0
-                  const isSelected = currentRatings[q.key] === value;
-                  return (
-                    <button
-                      key={optIdx}
-                      onClick={() => handleRatingChange(q.key, value)}
-                      disabled={loading}
-                      style={{
-                        ...styles.ratingOption,
-                        ...(isSelected ? styles.ratingOptionSelected : {}),
-                        ...(loading ? styles.disabledButton : {})
-                      }}
-                    >
-                      {option}
-                    </button>
-                  );
-                })}
+              
+              {/* Emoji row - fixed positions */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: '8px',
+                padding: '0'
+              }}>
+                {EMOJIS.map((emoji, idx) => (
+                  <span 
+                    key={idx} 
+                    style={{ 
+                      fontSize: '20px',
+                      opacity: selectedValue === idx ? 1 : 0.4,
+                      transform: selectedValue === idx ? 'scale(1.3)' : 'scale(1)',
+                      transition: 'all 0.2s ease',
+                      width: '24px',
+                      textAlign: 'center'
+                    }}
+                  >
+                    {emoji}
+                  </span>
+                ))}
+              </div>
+              
+              {/* Gradient slider bar */}
+              <div 
+                style={{
+                  position: 'relative',
+                  height: '32px',
+                  borderRadius: '16px',
+                  background: 'linear-gradient(to right, #ef4444, #f97316, #eab308, #22c55e)',
+                  cursor: loading ? 'not-allowed' : 'pointer'
+                }}
+                onClick={(e) => {
+                  if (loading) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const percent = x / rect.width;
+                  // Map to 0-3 based on which quarter was clicked
+                  const value = Math.min(3, Math.floor(percent * 4));
+                  handleRatingChange(q.key, value);
+                }}
+              >
+                {/* Unselected overlay - greys out unselected portion on the right */}
+                {selectedValue !== undefined && selectedValue < 3 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: `${positions[selectedValue] + (selectedValue === 0 ? 12 : 8)}%`,
+                    right: 0,
+                    backgroundColor: 'rgba(255,255,255,0.7)',
+                    borderRadius: '0 16px 16px 0',
+                    pointerEvents: 'none'
+                  }} />
+                )}
+                
+                {/* Selection dot - positioned to align with emoji */}
+                {selectedValue !== undefined && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: selectedValue === 0 ? '12px' : selectedValue === 3 ? 'calc(100% - 12px)' : `${positions[selectedValue]}%`,
+                    transform: 'translate(-50%, -50%)',
+                    width: '22px',
+                    height: '22px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                    border: `3px solid ${GRADIENT_COLORS[selectedValue]}`,
+                    pointerEvents: 'none'
+                  }} />
+                )}
+              </div>
+              
+              {/* Selected label display */}
+              <div style={{
+                textAlign: 'center',
+                marginTop: '8px',
+                fontSize: '13px',
+                color: '#374151',
+                fontWeight: '500',
+                minHeight: '20px'
+              }}>
+                {selectedValue !== undefined ? reversedOptions[selectedValue] : ''}
               </div>
             </div>
           );
@@ -604,7 +757,7 @@ ${JSON.stringify(uiElements)}`;
           disabled={loading || !section.questions.every(q => currentRatings[q.key] !== undefined)}
           style={{
             ...styles.submitButton,
-            marginTop: '16px',
+            marginTop: '8px',
             ...(loading || !section.questions.every(q => currentRatings[q.key] !== undefined) ? styles.disabledButton : {})
           }}
         >
@@ -875,12 +1028,23 @@ const styles = {
   },
   dropdown: {
     width: '100%',
-    padding: '14px',
+    padding: '16px',
     borderRadius: '12px',
-    border: '1px solid #e5e7eb',
+    border: '2px solid #e5e7eb',
     backgroundColor: 'white',
     fontSize: '15px',
-    cursor: 'pointer'
+    fontWeight: '500',
+    color: '#374151',
+    cursor: 'pointer',
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    MozAppearance: 'none',
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 12px center',
+    backgroundSize: '20px',
+    outline: 'none',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
   },
   durationGrid: {
     display: 'grid',
