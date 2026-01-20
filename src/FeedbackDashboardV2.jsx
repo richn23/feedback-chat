@@ -229,7 +229,8 @@ function FeedbackDashboardV2() {
     if (sectionSummaries[sectionKey]) return;
     setLoadingSection(sectionKey);
     const sectionComments = comments.filter(c => c.section === sectionKey);
-    setSectionSummaries(p => ({ ...p, [sectionKey]: await generateSectionSummary(sectionKey, filteredData, sectionComments) }));
+    const summary = await generateSectionSummary(sectionKey, filteredData, sectionComments);
+    setSectionSummaries(p => ({ ...p, [sectionKey]: summary }));
     setLoadingSection(null);
   };
 
