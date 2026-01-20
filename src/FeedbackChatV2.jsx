@@ -121,17 +121,17 @@ const DURATION_OPTIONS = [
   { label: '2+ months', value: '2+ months' }
 ];
 
-// Section definitions with slider config
+// Section definitions with specific labels per question
 const SECTIONS = {
   env: {
     title: 'Learning Environment',
     icon: '🏫',
     color: '#3B82F6',
     questions: [
-      { key: 'env_classroom', label: 'Classroom comfort', left: '😟', right: '😊' },
-      { key: 'env_facilities', label: 'School facilities', left: '😟', right: '😊' },
-      { key: 'env_location', label: 'Location', left: '😟', right: '😊' },
-      { key: 'env_schedule', label: 'Class schedule', left: '😟', right: '😊' }
+      { key: 'env_classroom', label: 'Classroom comfort', labels: ['Often uncomfortable', 'Sometimes uncomfortable', 'Comfortable enough', 'Very comfortable'] },
+      { key: 'env_facilities', label: 'School facilities', labels: ['Need major improvement', 'Need some improvement', 'Good enough', 'Very good'] },
+      { key: 'env_location', label: 'Location', labels: ['Very inconvenient', 'Sometimes inconvenient', 'Convenient enough', 'Very convenient'] },
+      { key: 'env_schedule', label: 'Class schedule', labels: ['Very difficult', 'Sometimes difficult', 'Works well enough', 'Works very well'] }
     ]
   },
   exp: {
@@ -139,10 +139,10 @@ const SECTIONS = {
     icon: '📚',
     color: '#10B981',
     questions: [
-      { key: 'exp_activities', label: 'Class activities', left: '😟', right: '😊' },
-      { key: 'exp_homework', label: 'Homework', left: '😟', right: '😊' },
-      { key: 'exp_materials', label: 'Materials', left: '😟', right: '😊' },
-      { key: 'exp_progress', label: 'Your progress', left: '😟', right: '😊' }
+      { key: 'exp_activities', label: 'Class activities', labels: ['Not very helpful', 'Sometimes helpful', 'Helpful enough', 'Very helpful'] },
+      { key: 'exp_homework', label: 'Homework', labels: ['Not right for me', 'A bit too much/easy', 'About right', 'Just right'] },
+      { key: 'exp_materials', label: 'Materials', labels: ['Not very helpful', 'Sometimes helpful', 'Helpful enough', 'Very helpful'] },
+      { key: 'exp_progress', label: 'Your progress', labels: ['Not improving much', 'Improving a little', 'Improving enough', 'Improving a lot'] }
     ]
   },
   teach: {
@@ -150,10 +150,10 @@ const SECTIONS = {
     icon: '👩‍🏫',
     color: '#8B5CF6',
     questions: [
-      { key: 'teach_explanations', label: 'Explanations', left: '😟', right: '😊' },
-      { key: 'teach_preparation', label: 'Preparation', left: '😟', right: '😊' },
-      { key: 'teach_methods', label: 'Teaching methods', left: '😟', right: '😊' },
-      { key: 'teach_speaking', label: 'Speaking practice', left: '😟', right: '😊' }
+      { key: 'teach_explanations', label: 'Explanations', labels: ['Often unclear', 'Sometimes unclear', 'Usually clear', 'Always clear'] },
+      { key: 'teach_preparation', label: 'Preparation', labels: ['Often unprepared', 'Sometimes unprepared', 'Usually prepared', 'Always prepared'] },
+      { key: 'teach_methods', label: 'Teaching methods', labels: ['Need improvement', 'Could be better', 'Good methods', 'Very good methods'] },
+      { key: 'teach_speaking', label: 'Speaking practice', labels: ['Not enough', 'Sometimes', 'Often enough', 'Very often'] }
     ]
   },
   support: {
@@ -161,10 +161,10 @@ const SECTIONS = {
     icon: '🤝',
     color: '#F59E0B',
     questions: [
-      { key: 'support_help', label: 'Getting help', left: '😟', right: '😊' },
-      { key: 'support_feedback', label: 'Feedback quality', left: '😟', right: '😊' },
-      { key: 'support_encouragement', label: 'Encouragement', left: '😟', right: '😊' },
-      { key: 'support_atmosphere', label: 'Class atmosphere', left: '😟', right: '😊' }
+      { key: 'support_help', label: 'Getting help', labels: ['Rarely helps', 'Sometimes helps', 'Usually helps', 'Always helps'] },
+      { key: 'support_feedback', label: 'Feedback quality', labels: ['Not very helpful', 'Sometimes helpful', 'Helpful enough', 'Very helpful'] },
+      { key: 'support_encouragement', label: 'Encouragement', labels: ['Rarely encourages', 'Sometimes encourages', 'Usually encourages', 'Always encourages'] },
+      { key: 'support_atmosphere', label: 'Class atmosphere', labels: ['Poor atmosphere', 'OK atmosphere', 'Good atmosphere', 'Very good atmosphere'] }
     ]
   },
   mgmt: {
@@ -172,10 +172,10 @@ const SECTIONS = {
     icon: '📋',
     color: '#EF4444',
     questions: [
-      { key: 'mgmt_timing', label: 'Time management', left: '😟', right: '😊' },
-      { key: 'mgmt_fairness', label: 'Fairness', left: '😟', right: '😊' },
-      { key: 'mgmt_organization', label: 'Organization', left: '😟', right: '😊' },
-      { key: 'mgmt_rules', label: 'Class rules', left: '😟', right: '😊' }
+      { key: 'mgmt_timing', label: 'Time management', labels: ['Often poorly managed', 'Sometimes poorly managed', 'Usually well managed', 'Always well managed'] },
+      { key: 'mgmt_fairness', label: 'Fairness', labels: ['Often unfair', 'Sometimes unfair', 'Usually fair', 'Always fair'] },
+      { key: 'mgmt_organization', label: 'Organization', labels: ['Often disorganized', 'Sometimes disorganized', 'Usually organized', 'Always organized'] },
+      { key: 'mgmt_rules', label: 'Class rules', labels: ['Poor rules', 'Rules need improvement', 'Good rules', 'Very good rules'] }
     ]
   }
 };
@@ -343,18 +343,16 @@ const RatingSlider = ({ question, value, onChange }) => {
     return '😟';
   };
 
+  // Use question-specific label
   const getLabel = () => {
-    if (localValue >= 2.5) return 'Great';
-    if (localValue >= 1.5) return 'Good';
-    if (localValue >= 0.5) return 'Okay';
-    return 'Poor';
+    return question.labels[localValue] || '';
   };
 
   return (
     <div style={{ marginBottom: '18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <span style={{ fontSize: '14px', color: '#374151', fontWeight: '500' }}>{question.label}</span>
-        <span style={{ fontSize: '14px', color: getTrackColor(), fontWeight: '500' }}>{getEmoji()} {getLabel()}</span>
+        <span style={{ fontSize: '13px', color: getTrackColor(), fontWeight: '500' }}>{getEmoji()} {getLabel()}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <div style={{ flex: 1, position: 'relative' }}>
