@@ -752,17 +752,26 @@ ${JSON.stringify(ratingOptions)}`;
             </div>
           );
         })}
-        <button
-          onClick={() => handleRatingsSubmit(sectionKey)}
-          disabled={loading || !section.questions.every(q => currentRatings[q.key] !== undefined)}
-          style={{
-            ...styles.submitButton,
-            marginTop: '8px',
-            ...(loading || !section.questions.every(q => currentRatings[q.key] !== undefined) ? styles.disabledButton : {})
-          }}
-        >
-          {translatedUI?.submit || 'Submit'}
-        </button>
+        {/* Submit button - sticky at bottom */}
+        <div style={{
+          position: 'sticky',
+          bottom: 0,
+          backgroundColor: '#f9fafb',
+          paddingTop: '12px',
+          paddingBottom: '4px',
+          marginTop: 'auto'
+        }}>
+          <button
+            onClick={() => handleRatingsSubmit(sectionKey)}
+            disabled={loading || !section.questions.every(q => currentRatings[q.key] !== undefined)}
+            style={{
+              ...styles.submitButton,
+              ...(loading || !section.questions.every(q => currentRatings[q.key] !== undefined) ? styles.disabledButton : {})
+            }}
+          >
+            {translatedUI?.submit || 'Submit'}
+          </button>
+        </div>
       </div>
     );
   };
@@ -989,7 +998,9 @@ const styles = {
   inputArea: {
     padding: '16px',
     borderTop: '1px solid #e5e7eb',
-    backgroundColor: 'white'
+    backgroundColor: 'white',
+    maxHeight: '60vh',
+    overflowY: 'auto'
   },
   buttonGrid: {
     display: 'grid',
@@ -1064,7 +1075,11 @@ const styles = {
     backgroundColor: '#f9fafb',
     borderRadius: '16px',
     padding: '16px',
-    border: '1px solid #e5e7eb'
+    border: '1px solid #e5e7eb',
+    maxHeight: '55vh',
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column'
   },
   ratingCardTitle: {
     fontSize: '18px',
