@@ -218,7 +218,13 @@ function FeedbackDashboardV2() {
 
   const handleGenerateSummary = async () => { setSummaryLoading(true); setAiSummary(await generateAISummary(filteredData, sectionAverages, overallAvg)); setSummaryLoading(false); };
   const handleTranslate = async () => { setTranslating(true); setTranslatedComments(await translateComments(rawComments)); setTranslating(false); };
-  const handleTeacherSummary = async (name) => { if (teacherSummaries[name]) return; setLoadingTeacher(name); setTeacherSummaries(p => ({ ...p, [name]: await generateTeacherSummary(name, teacherData[name]) })); setLoadingTeacher(null); };
+  const handleTeacherSummary = async (name) => { 
+    if (teacherSummaries[name]) return; 
+    setLoadingTeacher(name); 
+    const summary = await generateTeacherSummary(name, teacherData[name]);
+    setTeacherSummaries(p => ({ ...p, [name]: summary })); 
+    setLoadingTeacher(null); 
+  };
   const handleSectionSummary = async (sectionKey) => {
     if (sectionSummaries[sectionKey]) return;
     setLoadingSection(sectionKey);
