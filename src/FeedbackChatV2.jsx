@@ -10,7 +10,7 @@ LANGUAGE RULES:
 
 CONVERSATION FLOW:
 
-1. LANGUAGE - Already selected via buttons
+1. LANGUAGE - Already selected via buttons or typed by user
 
 2. CAMPUS - Ask which campus
    Set current_step: "campus"
@@ -22,33 +22,48 @@ CONVERSATION FLOW:
    Set current_step: "duration"
 
 5. LEARNING ENVIRONMENT section
+   Say ONLY: "Now let's talk about your learning environment." (or similar short intro)
    Set current_step: "env"
+   DO NOT ask for ratings or list questions - the UI shows sliders automatically!
    
-6. ENV FOLLOW-UP - Brief summary (1 sentence max), ask "Anything to add?"
+6. ENV FOLLOW-UP - Look at their actual ratings and respond naturally
    Set current_step: "env_comment"
+   
+   IMPORTANT: Your follow-up should be REACTIVE to their specific answers:
+   - If they rated something low (0-1), ask about that specifically: "I see the schedule is difficult. What would work better?"
+   - If everything is high (2-3), just say: "Great! Anything else about the environment?"
+   - Don't list all the topics - focus on what matters based on their ratings
 
 7. LEARNING EXPERIENCE section
+   Say ONLY: "Next, your learning experience." (or similar short intro)
    Set current_step: "exp"
+   DO NOT ask for ratings - UI handles it!
 
-8. EXP FOLLOW-UP
+8. EXP FOLLOW-UP - React to their specific ratings
    Set current_step: "exp_comment"
 
 9. TEACHING QUALITY section
+   Say ONLY: "Now about your teacher and classes." (or similar)
    Set current_step: "teach"
+   DO NOT ask for ratings!
 
-10. TEACH FOLLOW-UP
+10. TEACH FOLLOW-UP - React to their specific ratings
     Set current_step: "teach_comment"
 
 11. STUDENT SUPPORT section
+    Say ONLY: "How about the support you receive?" (or similar)
     Set current_step: "support"
+    DO NOT ask for ratings!
 
-12. SUPPORT FOLLOW-UP
+12. SUPPORT FOLLOW-UP - React to their specific ratings
     Set current_step: "support_comment"
 
 13. CLASS MANAGEMENT section
+    Say ONLY: "Finally, about how classes are managed." (or similar)
     Set current_step: "mgmt"
+    DO NOT ask for ratings!
 
-14. MGMT FOLLOW-UP
+14. MGMT FOLLOW-UP - React to their specific ratings
     Set current_step: "mgmt_comment"
 
 15. FINAL - "Any other comments?" 
@@ -56,18 +71,47 @@ CONVERSATION FLOW:
 
 16. THANK YOU - Short thanks, set is_complete: true
 
+CRITICAL RULES FOR SECTION INTROS (env, exp, teach, support, mgmt):
+- Say ONE short sentence to introduce the topic
+- DO NOT list questions
+- DO NOT ask them to rate anything
+- DO NOT mention numbers or scales
+- The UI will automatically show rating sliders - you just introduce the section!
+
+BAD: "Now I'd like to ask about your learning environment. Please rate each from 0-3: Classroom comfort? School facilities?"
+GOOD: "Now let's talk about your learning environment."
+
+BAD: "Rate these from 0-3: **Classroom comfort** (space, temperature)..."
+GOOD: "Next up - your classroom and facilities."
+
+CRITICAL STYLE RULES FOR FOLLOW-UPS:
+- NEVER list the topics (classroom, facilities, location, schedule, etc.)
+- NEVER use template phrases
+- Keep follow-ups SHORT and SIMPLE (5-10 words max)
+- VARY your responses - don't repeat the same phrase twice in a conversation
+
+FOR LOW/MIXED SCORES, vary between these styles:
+- "What are the main issues for you?"
+- "What could be better?"
+- "Tell me more about that."
+- "What's not working?"
+- "Anything specific?"
+- "What would help?"
+
+FOR GOOD SCORES, vary between these styles:
+- "Great! Anything to add?"
+- "Good to hear. Anything else?"
+- "Nice. Anything to add?"
+- "Thanks! Anything else?"
+- "Okay, moving on..." (if they seem to want to go fast)
+
+IMPORTANT: Pick DIFFERENT phrases each time. Don't use the same follow-up twice.
+
 STYLE GUIDE:
-- Summaries: ONE short sentence only. Example: "Good to hear the classroom works for you."
-- Don't repeat what they said back to them
-- Don't be overly enthusiastic 
-- Sound like a real person, not a robot
+- Sound like a real person, not a survey bot
+- ONE short sentence max
+- No exclamation marks overuse
 - Translate comments to English when storing
-
-BAD: "That's wonderful to hear! It sounds like you're really enjoying the comfortable classroom environment and finding the facilities quite satisfactory!"
-GOOD: "Great, thanks. Anything else about the environment?"
-
-BAD: "Thank you so much for sharing that valuable feedback about your learning experience!"  
-GOOD: "Thanks. Let's talk about your classes next."
 
 JSON FORMAT - include after EVERY response:
 |||JSON|||
@@ -294,7 +338,8 @@ const HARDCODED_SECTIONS = {
   }
 };
 
-const LANGUAGES = [
+// Common languages with native labels
+const COMMON_LANGUAGES = [
   { label: 'English', value: 'English' },
   { label: 'العربية', value: 'Arabic' },
   { label: 'Español', value: 'Spanish' },
@@ -303,13 +348,7 @@ const LANGUAGES = [
   { label: 'Türkçe', value: 'Turkish' },
   { label: 'Русский', value: 'Russian' },
   { label: 'ไทย', value: 'Thai' },
-  { label: 'فارسی', value: 'Farsi' },
-  { label: '한국어', value: 'Korean' },
-  { label: '日本語', value: 'Japanese' },
-  { label: 'Tiếng Việt', value: 'Vietnamese' },
-  { label: 'Français', value: 'French' },
-  { label: 'Deutsch', value: 'German' },
-  { label: 'Italiano', value: 'Italian' }
+  { label: 'فارسی', value: 'Farsi' }
 ];
 
 const GOOGLE_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || '';
@@ -421,16 +460,24 @@ function FeedbackChatV2() {
   const [buttonOptions, setButtonOptions] = useState(null);
   const [sectionQuestions, setSectionQuestions] = useState(null);
   const [sectionAnswers, setSectionAnswers] = useState({});
-  const [customLangMode, setCustomLangMode] = useState(false);
+  const [showCustomLangInput, setShowCustomLangInput] = useState(false);
   const messagesEndRef = useRef(null);
+  const customLangInputRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sectionQuestions]);
 
   useEffect(() => {
-    setMessages([{ type: 'bot', text: "Hi! 👋 Please choose your language." }]);
+    setMessages([{ type: 'bot', text: "Hi! 👋 What language would you like to use?" }]);
   }, []);
+
+  // Focus custom language input when shown
+  useEffect(() => {
+    if (showCustomLangInput && customLangInputRef.current) {
+      customLangInputRef.current.focus();
+    }
+  }, [showCustomLangInput]);
 
   const parseResponse = (text) => {
     const jsonMatch = text.match(/\|\|\|JSON\|\|\|([\s\S]*?)\|\|\|END\|\|\|/);
@@ -479,19 +526,16 @@ function FeedbackChatV2() {
       if (data) {
         setCollectedData(prev => ({ ...prev, ...data }));
         
-        // Use hardcoded options if Claude doesn't provide them
         if (data.button_options && data.button_options.options) {
           setButtonOptions(data.button_options);
         } else if (HARDCODED_OPTIONS[data.current_step]) {
           setButtonOptions(HARDCODED_OPTIONS[data.current_step]);
         } else if (HARDCODED_OPTIONS['campus']) {
-          // Default to campus options after language selection
           setButtonOptions(HARDCODED_OPTIONS['campus']);
         }
         
         if (data.current_step) setCurrentStep(data.current_step);
       } else {
-        // Fallback - show campus options
         setButtonOptions(HARDCODED_OPTIONS['campus']);
       }
     } catch (error) {
@@ -522,7 +566,6 @@ function FeedbackChatV2() {
         setCollectedData(prev => ({ ...prev, ...data }));
         if (data.current_step) setCurrentStep(data.current_step);
         
-        // Use hardcoded options if Claude doesn't provide them
         if (data.button_options && data.button_options.options) {
           setButtonOptions(data.button_options);
         } else if (HARDCODED_OPTIONS[data.current_step]) {
@@ -531,7 +574,6 @@ function FeedbackChatV2() {
           setButtonOptions(null);
         }
         
-        // Use hardcoded sections if Claude doesn't provide them
         if (data.section_questions && data.section_questions.questions) {
           setSectionQuestions(data.section_questions);
           setSectionAnswers({});
@@ -555,6 +597,7 @@ function FeedbackChatV2() {
   const handleLanguageSelect = (language) => {
     setMessages(prev => [...prev, { type: 'user', text: language }]);
     setCurrentStep('starting');
+    setShowCustomLangInput(false);
     startAfterLanguage(language);
   };
 
@@ -564,7 +607,6 @@ function FeedbackChatV2() {
       return `${q.question}: ${opt?.label || 'N/A'}`;
     }).join('\n');
     
-    // Store the numeric values in collectedData
     const sectionData = {};
     sectionQuestions.questions.forEach(q => {
       sectionData[q.key] = sectionAnswers[q.key];
@@ -576,9 +618,8 @@ function FeedbackChatV2() {
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && inputValue.trim()) {
-      if (currentStep === 'language' && customLangMode) {
+      if (currentStep === 'language' && showCustomLangInput) {
         handleLanguageSelect(inputValue.trim());
-        setCustomLangMode(false);
       } else {
         sendMessage(inputValue.trim());
       }
@@ -697,8 +738,8 @@ function FeedbackChatV2() {
     }),
     submitButton: (enabled) => ({
       width: '100%',
-      marginTop: '12px',
-      padding: '10px',
+      marginTop: '16px',
+      padding: '12px',
       borderRadius: '12px',
       border: 'none',
       fontWeight: '500',
@@ -706,6 +747,75 @@ function FeedbackChatV2() {
       backgroundColor: enabled ? '#f97316' : '#f3f4f6',
       color: enabled ? 'white' : '#9ca3af'
     }),
+    // Slider styles
+    sliderContainer: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+      padding: '8px 0'
+    },
+    sliderLabels: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      fontSize: '11px',
+      color: '#9ca3af'
+    },
+    sliderLabelLeft: {
+      textAlign: 'left'
+    },
+    sliderLabelRight: {
+      textAlign: 'right'
+    },
+    sliderWrapper: {
+      position: 'relative',
+      width: '100%',
+      height: '24px',
+      display: 'flex',
+      alignItems: 'center'
+    },
+    tickMarks: {
+      position: 'absolute',
+      top: '50%',
+      left: '0',
+      right: '0',
+      transform: 'translateY(-50%)',
+      display: 'flex',
+      justifyContent: 'space-between',
+      padding: '0 2px',
+      pointerEvents: 'none',
+      zIndex: 0
+    },
+    tick: {
+      width: '12px',
+      height: '12px',
+      borderRadius: '50%',
+      border: '2px solid white',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+    },
+    slider: {
+      width: '100%',
+      height: '8px',
+      borderRadius: '4px',
+      appearance: 'none',
+      cursor: 'pointer',
+      outline: 'none',
+      position: 'relative',
+      zIndex: 1,
+      background: 'transparent'
+    },
+    sliderValueDisplay: {
+      textAlign: 'center',
+      minHeight: '20px'
+    },
+    sliderValueText: {
+      fontSize: '13px',
+      fontWeight: '500'
+    },
+    sliderPlaceholder: {
+      fontSize: '12px',
+      color: '#9ca3af',
+      fontStyle: 'italic'
+    },
     typingIndicator: {
       display: 'flex',
       justifyContent: 'flex-start'
@@ -736,56 +846,92 @@ function FeedbackChatV2() {
       color: '#6b7280',
       fontSize: '14px'
     },
+    // Language selection styles
+    languageSection: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px'
+    },
     languageGrid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
-      gap: '8px',
-      marginBottom: '8px'
+      gap: '8px'
     },
     languageButton: {
-      padding: '8px 12px',
-      borderRadius: '12px',
+      padding: '10px 8px',
+      borderRadius: '10px',
       backgroundColor: 'white',
       border: '1px solid #e5e7eb',
       fontSize: '14px',
       cursor: 'pointer',
       transition: 'all 0.15s'
     },
-    customLangLink: {
-      width: '100%',
-      padding: '8px',
-      fontSize: '14px',
-      color: '#6b7280',
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer'
+    customLangContainer: {
+      marginTop: '4px',
+      padding: '12px',
+      backgroundColor: '#f0f9ff',
+      borderRadius: '10px',
+      border: '1px solid #bae6fd'
     },
-    customLangInput: {
+    customLangLabel: {
+      fontSize: '13px',
+      color: '#0369a1',
+      marginBottom: '8px',
+      fontWeight: '500'
+    },
+    customLangInputRow: {
       display: 'flex',
       gap: '8px'
     },
     textInput: {
       flex: 1,
-      padding: '8px 12px',
+      padding: '10px 12px',
       border: '1px solid #e5e7eb',
-      borderRadius: '12px',
+      borderRadius: '10px',
       fontSize: '14px',
       outline: 'none'
     },
     goButton: (enabled) => ({
-      padding: '8px 16px',
+      padding: '10px 20px',
       backgroundColor: enabled ? '#f97316' : '#e5e7eb',
       color: enabled ? 'white' : '#9ca3af',
       border: 'none',
-      borderRadius: '12px',
+      borderRadius: '10px',
       fontSize: '14px',
+      fontWeight: '500',
       cursor: enabled ? 'pointer' : 'default'
     }),
-    buttonOptionsGrid: (isTeacher) => ({
+    orDivider: {
+      textAlign: 'center',
+      color: '#9ca3af',
+      fontSize: '12px',
+      margin: '8px 0'
+    },
+    buttonOptionsGrid: {
       display: 'grid',
-      gridTemplateColumns: isTeacher ? '1fr 1fr' : '1fr',
+      gridTemplateColumns: '1fr',
       gap: '8px'
-    }),
+    },
+    dropdownContainer: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px'
+    },
+    dropdown: {
+      width: '100%',
+      padding: '14px 16px',
+      borderRadius: '12px',
+      border: '1px solid #e5e7eb',
+      fontSize: '16px',
+      backgroundColor: 'white',
+      color: '#374151',
+      cursor: 'pointer',
+      appearance: 'none',
+      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'right 16px center',
+      outline: 'none'
+    },
     optionBtn: {
       padding: '12px 16px',
       borderRadius: '12px',
@@ -839,6 +985,69 @@ function FeedbackChatV2() {
           30% { transform: translateY(-4px); }
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        /* Slider thumb styling */
+        input[type="range"] {
+          -webkit-appearance: none;
+          appearance: none;
+          height: 8px;
+          border-radius: 4px;
+        }
+        
+        /* Active slider - orange thumb */
+        input[type="range"].slider-active::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: #f97316;
+          cursor: pointer;
+          border: 3px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+          margin-top: -8px;
+        }
+        input[type="range"].slider-active::-moz-range-thumb {
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: #f97316;
+          cursor: pointer;
+          border: 3px solid white;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        
+        /* Inactive slider - gray smaller thumb */
+        input[type="range"].slider-inactive::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: #d1d5db;
+          cursor: pointer;
+          border: 2px solid white;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+          margin-top: -6px;
+        }
+        input[type="range"].slider-inactive::-moz-range-thumb {
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: #d1d5db;
+          cursor: pointer;
+          border: 2px solid white;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+        
+        input[type="range"]::-webkit-slider-runnable-track {
+          height: 8px;
+          border-radius: 4px;
+        }
+        input[type="range"]::-moz-range-track {
+          height: 8px;
+          border-radius: 4px;
+        }
       `}</style>
 
       {/* Header */}
@@ -862,22 +1071,74 @@ function FeedbackChatV2() {
         {sectionQuestions && (
           <div style={styles.sectionCard}>
             <h3 style={styles.sectionTitle}>{sectionQuestions.title}</h3>
-            {sectionQuestions.questions.map(q => (
-              <div key={q.key} style={styles.questionBlock}>
-                <p style={styles.questionText}>{q.question}</p>
-                <div style={styles.optionsGrid}>
-                  {q.options.map((opt, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSectionAnswers(prev => ({ ...prev, [q.key]: opt.value }))}
-                      style={styles.optionButton(sectionAnswers[q.key] === opt.value, opt.value)}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+            {sectionQuestions.questions.map(q => {
+              const currentValue = sectionAnswers[q.key];
+              const hasValue = currentValue !== undefined;
+              // Get label for current value
+              const currentLabel = hasValue ? q.options.find(o => o.value === currentValue)?.label : null;
+              
+              return (
+                <div key={q.key} style={styles.questionBlock}>
+                  <p style={styles.questionText}>{q.question}</p>
+                  
+                  {/* Slider container */}
+                  <div style={styles.sliderContainer}>
+                    {/* Labels above slider */}
+                    <div style={styles.sliderLabels}>
+                      <span style={styles.sliderLabelLeft}>{q.options[q.options.length - 1]?.label}</span>
+                      <span style={styles.sliderLabelRight}>{q.options[0]?.label}</span>
+                    </div>
+                    
+                    {/* Slider with tick marks */}
+                    <div style={styles.sliderWrapper}>
+                      {/* Tick marks */}
+                      <div style={styles.tickMarks}>
+                        {[0, 1, 2, 3].map(tick => (
+                          <div 
+                            key={tick} 
+                            style={{
+                              ...styles.tick,
+                              backgroundColor: hasValue && currentValue >= tick ? '#f97316' : '#d1d5db'
+                            }}
+                          />
+                        ))}
+                      </div>
+                      
+                      {/* The slider */}
+                      <input
+                        type="range"
+                        min="0"
+                        max="3"
+                        step="1"
+                        value={hasValue ? currentValue : 1}
+                        onChange={(e) => setSectionAnswers(prev => ({ ...prev, [q.key]: parseInt(e.target.value) }))}
+                        className={hasValue ? 'slider-active' : 'slider-inactive'}
+                        style={{
+                          ...styles.slider,
+                          background: hasValue 
+                            ? `linear-gradient(to right, #f97316 0%, #f97316 ${(currentValue / 3) * 100}%, #e5e7eb ${(currentValue / 3) * 100}%, #e5e7eb 100%)`
+                            : '#e5e7eb'
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Current selection indicator */}
+                    <div style={styles.sliderValueDisplay}>
+                      {hasValue ? (
+                        <span style={{
+                          ...styles.sliderValueText,
+                          color: currentValue >= 2 ? '#16a34a' : currentValue >= 1 ? '#ca8a04' : '#dc2626'
+                        }}>
+                          {currentLabel}
+                        </span>
+                      ) : (
+                        <span style={styles.sliderPlaceholder}>Slide to rate</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             <button
               onClick={handleSectionSubmit}
               disabled={!allAnswered}
@@ -907,9 +1168,10 @@ function FeedbackChatV2() {
         {isComplete ? (
           <p style={styles.completedText}>✓ Feedback submitted</p>
         ) : currentStep === 'language' ? (
-          <>
+          <div style={styles.languageSection}>
+            {/* Common languages grid */}
             <div style={styles.languageGrid}>
-              {LANGUAGES.map((lang, i) => (
+              {COMMON_LANGUAGES.map((lang, i) => (
                 <button
                   key={i}
                   onClick={() => handleLanguageSelect(lang.value)}
@@ -927,28 +1189,27 @@ function FeedbackChatV2() {
                 </button>
               ))}
             </div>
-            {!customLangMode ? (
-              <button
-                onClick={() => setCustomLangMode(true)}
-                style={styles.customLangLink}
-              >
-                Or type another language...
-              </button>
-            ) : (
-              <div style={styles.customLangInput}>
+            
+            {/* Custom language input - always visible */}
+            <div style={styles.customLangContainer}>
+              <div style={styles.customLangLabel}>
+                🌍 Don't see your language? Type it here:
+              </div>
+              <div style={styles.customLangInputRow}>
                 <input
+                  ref={customLangInputRef}
                   value={inputValue}
                   onChange={e => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Type your language..."
+                  placeholder="e.g. Hindi, Korean, Japanese..."
                   style={styles.textInput}
-                  autoFocus
                 />
                 <button
                   onClick={() => {
-                    handleLanguageSelect(inputValue.trim());
-                    setInputValue('');
-                    setCustomLangMode(false);
+                    if (inputValue.trim()) {
+                      handleLanguageSelect(inputValue.trim());
+                      setInputValue('');
+                    }
                   }}
                   disabled={!inputValue.trim()}
                   style={styles.goButton(!!inputValue.trim())}
@@ -956,28 +1217,49 @@ function FeedbackChatV2() {
                   Go
                 </button>
               </div>
-            )}
-          </>
-        ) : buttonOptions && buttonOptions.options ? (
-          <div style={styles.buttonOptionsGrid(buttonOptions.type === 'teacher')}>
-            {buttonOptions.options.map((opt, i) => (
-              <button
-                key={i}
-                onClick={() => sendMessage(opt.label)}
-                style={styles.optionBtn}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#f97316';
-                  e.target.style.color = 'white';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = 'white';
-                  e.target.style.color = 'black';
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
+            </div>
           </div>
+        ) : buttonOptions && buttonOptions.options ? (
+          buttonOptions.type === 'teacher' ? (
+            // Teacher dropdown
+            <div style={styles.dropdownContainer}>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    sendMessage(e.target.value);
+                  }
+                }}
+                style={styles.dropdown}
+              >
+                <option value="" disabled>Select your teacher...</option>
+                {buttonOptions.options.map((opt, i) => (
+                  <option key={i} value={opt.label}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            // Regular buttons for campus, duration, etc.
+            <div style={styles.buttonOptionsGrid}>
+              {buttonOptions.options.map((opt, i) => (
+                <button
+                  key={i}
+                  onClick={() => sendMessage(opt.label)}
+                  style={styles.optionBtn}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#f97316';
+                    e.target.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'white';
+                    e.target.style.color = 'black';
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )
         ) : !sectionQuestions && (
           <>
             <div style={styles.inputRow}>
